@@ -89,18 +89,15 @@ Delivery config lives on `Schedule` table. Fan-out per-entity resolvers live on
 
 ### P1 — Must fix before production
 
-- [ ] **`usp_BuildDispatchQueue` — INDIVIDUAL row email resolution**
-  Currently reads `@PrimEmailSrc`/`@PrimEmailSrcVal` from `#P` (fan-out config).
-  When delivery is EMAIL and fan-out is INDIVIDUAL, this is correct.
-  When delivery is EMAIL and fan-out is NONE, the INDIVIDUAL cursor never runs
-  (correctly — only one COMBINED row) but the combined email resolver needs
-  to cover the no-params branch too. Verify end-to-end.
+- [x] **`usp_BuildDispatchQueue` — INDIVIDUAL row email resolution**
+  No-params branch now uses `@sDeliveryMethod` (was hard-coded `'EMAIL'`).
+  Email, folder, and filename resolvers added — mirrors the COMBINED block logic.
+  All four source types (STATIC / LOOKUP_VIEW / SCALAR_FN / DYNAMIC_SQL) covered.
 
-- [ ] **`usp_BuildDispatchQueue` — schedule `@bsTok`/`@bsRes` DECLARE**
-  Two cursor variables (`@bsTok`, `@bsRes`) used in the combined filename
-  template cursor were replaced with a `-- comment` placeholder but the
-  cursor code still references them. Add to the BULK DECLARE block or
-  the top-level DECLARE.
+- [x] **`usp_BuildDispatchQueue` — schedule `@bsTok`/`@bsRes` DECLARE**
+  Added `@bsTok NVARCHAR(100)` and `@bsRes NVARCHAR(500)` to the BULK DECLARE
+  block. Cursor `bst` (schedule filename template token pass) now has its
+  FETCH targets declared.
 
 - [ ] **`fn_FetchDocumentId` — implement body**
   The function body is a stub pointing at `dbo.Document` / `sName` / `bEnabled`.

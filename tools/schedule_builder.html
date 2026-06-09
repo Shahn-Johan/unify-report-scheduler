@@ -473,6 +473,18 @@ select option{background:var(--s2)}
         </div>
       </div>
 
+      <!-- Load existing schedule -->
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:4px">
+        <div class="field">
+          <label>Load Existing Schedule <span class="opt">— paste <code>RegisterSQL</code> from <code>EXEC schdl.usp_GetScheduleJson @ScheduleName='...'</code></span></label>
+          <div style="position:relative">
+            <textarea id="loadScheduleInput" rows="4" placeholder="Paste the RegisterSQL column here to pre-fill all steps for editing"></textarea>
+            <button onclick="loadSchedule()" style="position:absolute;right:8px;top:8px;background:var(--accent2,#5c6bc0);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:10px;font-weight:700;padding:5px 9px">Load ↓</button>
+          </div>
+          <div id="load-sched-msg" style="font-size:11px;margin-top:2px"></div>
+        </div>
+      </div>
+
       <!-- Import JSON -->
       <div style="border-top:1px solid var(--border);padding-top:12px">
         <div class="field">
@@ -1056,21 +1068,9 @@ select option{background:var(--s2)}
       <button onclick="event.stopPropagation();copyTok('{{DISPLAYNAME}}',this)">Copy</button>
     </div>
   </div>
-  <div class="tok-offset">
-    <div class="tok-offset-title">Dynamic Day Offset Builder</div>
-    <div class="tok-offset-preview" id="to-prev">{{TODAY-1}}</div>
-    <div class="tok-offset-desc" id="to-desc">1 day before execution date</div>
-    <div class="tok-offset-controls">
-      <select id="to-dir" onchange="refreshOffset()"><option value="-">− Before</option><option value="+">+ After</option></select>
-      <input id="to-n" type="number" value="1" min="1" oninput="refreshOffset()"/>
-      <span style="font-size:11px;color:var(--muted)">days</span>
-      <button class="tok-offset-copy" onclick="copyTok(document.getElementById('to-prev').textContent,this)">Copy</button>
-    </div>
-  </div>
   <input id="tok-search" placeholder="Search tokens…" oninput="filterToks(this.value)"/>
   <div id="tok-list"></div>
 </div>
-
 <div id="toast">Copied ✓</div>
 
 <script>
@@ -1287,9 +1287,9 @@ function onSourceChangeCore(selId, valId) {
 //  PARAMETERS
 // ════════════════════════════════════════════════════════════
 const TOKEN_LIST = [
-  {g:'Today',         v:'{{TODAY}}',             d:'Execution date (YYYY-MM-DD)'},
-  {g:'Today',         v:'TODAY-N',               d:'{{TODAY-N}} — N days BEFORE today, enter N below'},
-  {g:'Today',         v:'TODAY+N',               d:'{{TODAY+N}} — N days AFTER today, enter N below'},
+  {g:'Today',         v:'{{TODAY}}',              d:'Execution date (YYYY-MM-DD)'},
+  {g:'Today',         v:'{{TODAY-N}}',            d:'{{TODAY-N}} — N days BEFORE today, enter N below'},
+  {g:'Today',         v:'{{TODAY+N}}',            d:'{{TODAY+N}} — N days AFTER today, enter N below'},
   {g:'Current Week',  v:'{{WEEK_START}}',         d:'Monday of current week'},
   {g:'Current Week',  v:'{{WEEK_END}}',           d:'Sunday of current week'},
   {g:'Previous Week', v:'{{PREV_WEEK_START}}',    d:'Monday of previous week'},
@@ -1633,6 +1633,170 @@ function parseJson() {
     msg.style.color='var(--red)';
     msg.textContent = '✗ Invalid JSON: ' + e.message;
   }
+}
+
+// ════════════════════════════════════════════════════════════
+//  LOAD EXISTING SCHEDULE
+// ════════════════════════════════════════════════════════════
+function extractSqlParam(sql, paramName) {
+  // Match @ParamName = N'...' or @ParamName = '...'
+  // [^'] matches any char including newlines; '' inside is an escaped quote
+  const re = new RegExp('@' + paramName + '(?!\\w)\\s*=\\s*N?\'((?:\'\'|[^\'])*)\'', 'i');
+  const m = sql.match(re);
+  if (m) return m[1].replace(/''/g, "'");
+  // Integer value
+  const reInt = new RegExp('@' + paramName + '(?!\\w)\\s*=\\s*(\\d+)', 'i');
+  const mi = sql.match(reInt);
+  if (mi) return mi[1];
+  return null;
+}
+
+function loadSchedule() {
+  const raw = document.getElementById('loadScheduleInput').value;
+  const msg = document.getElementById('load-sched-msg');
+  if (!raw.trim()) { msg.textContent = ''; return; }
+
+  const fields = [];
+
+  const docName = extractSqlParam(raw, 'DocumentName');
+  const outFmt  = extractSqlParam(raw, 'OutputFormat');
+  const lang    = extractSqlParam(raw, 'Language');
+  const conf    = extractSqlParam(raw, 'Confidentiality');
+  const sName   = extractSqlParam(raw, 'ScheduleName');
+  const freq    = extractSqlParam(raw, 'FrequencyType');
+  const runTime = extractSqlParam(raw, 'RunTime');
+  const dow     = extractSqlParam(raw, 'DayOfWeek');
+  const dom     = extractSqlParam(raw, 'DayOfMonth');
+  const intMin  = extractSqlParam(raw, 'IntervalMinutes');
+  const wStart  = extractSqlParam(raw, 'WindowStart');
+  const wEnd    = extractSqlParam(raw, 'WindowEnd');
+  const sDate   = extractSqlParam(raw, 'StartDate');
+  const eDate   = extractSqlParam(raw, 'EndDate');
+  const subj    = extractSqlParam(raw, 'Subject');
+  const body    = extractSqlParam(raw, 'BodyTemplate');
+  const djStr   = extractSqlParam(raw, 'DispatchJson');
+  const pjStr   = extractSqlParam(raw, 'ParametersJson');
+  const rjStr   = extractSqlParam(raw, 'RecipientsJson');
+
+  // Step 1 — Document
+  if (docName) { document.getElementById('docName').value = docName; fields.push('Document Name'); }
+  if (outFmt)  document.getElementById('outputFormat').value = outFmt;
+  if (lang)    document.getElementById('language').value = lang;
+  if (conf)    document.getElementById('confidentiality').value = conf;
+
+  // Step 2 — Timing
+  if (sName) {
+    document.getElementById('schedName').value = sName;
+    schedNameEdited = true;
+    document.getElementById('sched-name-reset').style.display = 'inline';
+    fields.push('Schedule Name');
+  }
+  if (freq) { document.getElementById('freq').value = freq; onFreq(); fields.push(freq); }
+  if (runTime) document.getElementById('runTime').value = (runTime + '').substring(0, 5);
+  if (dow  != null) document.getElementById('dow').value = dow;
+  if (dom  != null) document.getElementById('dom').value = dom;
+  if (intMin)  document.getElementById('intervalMin').value = intMin;
+  if (wStart)  document.getElementById('winStart').value = (wStart + '').substring(0, 5);
+  if (wEnd)    document.getElementById('winEnd').value   = (wEnd   + '').substring(0, 5);
+  if (sDate)   document.getElementById('startDate').value = sDate;
+  if (eDate)   document.getElementById('endDate').value   = eDate;
+
+  // Step 4 — Subject / Body
+  if (subj) { document.getElementById('subject').value = subj; fields.push('Subject'); }
+  if (body)   document.getElementById('body').value = body;
+
+  // Step 4 — Delivery (@DispatchJson)
+  if (djStr) {
+    try {
+      const dj = JSON.parse(djStr);
+      if (dj.deliveryMethod) { setDelivery(dj.deliveryMethod); fields.push('Delivery: ' + dj.deliveryMethod); }
+      if (dj.emailSource)      { document.getElementById('dlv-esrc').value = dj.emailSource; onBulkSourceChange('dlv-esrc','dlv-eval','dlvemail'); }
+      if (dj.emailSourceValue) { document.getElementById('dlv-eval-inp').value = dj.emailSourceValue; fields.push('Email source'); }
+      if (dj.folderSource)     { document.getElementById('bulk-fsrc').value = dj.folderSource; onBulkSourceChange('bulk-fsrc','bulk-fval','bulkfolder'); }
+      if (dj.folderSourceValue){ document.getElementById('bulk-fval-inp').value = dj.folderSourceValue; fields.push('Folder path'); }
+      if (dj.fileNameTemplate) { document.getElementById('staticFilename').value = dj.fileNameTemplate; fields.push('Filename template'); }
+      if (dj.fileNameSource)   { document.getElementById('bulk-fnsrc').value = dj.fileNameSource; onBulkSourceChange('bulk-fnsrc','bulk-fnval','bulkfilename'); }
+      if (dj.fileNameSourceValue) document.getElementById('bulk-fnval-inp').value = dj.fileNameSourceValue;
+    } catch(e) { /* ignore */ }
+  }
+
+  // Steps 3 + 5 — Parameters + Fan-out (@ParametersJson)
+  if (pjStr) {
+    try {
+      const pj = JSON.parse(pjStr);
+      if (Array.isArray(pj) && pj.length > 0) {
+        let foIdx = -1, foMode = 'NONE';
+        pj.forEach((p, i) => {
+          if (p.fanOut) { foIdx = i; foMode = p.fanOut.mode === 'BOTH' ? 'BOTH' : 'INDIVIDUAL'; }
+        });
+
+        params = []; pidx = 0;
+        pj.forEach((p, i) => {
+          const rawVal = p.value || '';
+          const vals = (!rawVal || rawVal === 'DYNAMIC') ? ['DYNAMIC'] : rawVal.split('|').filter(Boolean);
+          addParam({
+            name: p.name, type: p.type || 'string', required: p.required !== false,
+            values: vals, valueSource: p.valueQuery ? 'dynamic' : 'static', valueQuery: p.valueQuery || '',
+          });
+          const pp = params[params.length - 1];
+          pp.sortOrder = p.sortOrder || i + 1;
+          if (p.type === 'date' && vals.length === 1 && vals[0].startsWith('{{')) {
+            pp.dateMode = 'token'; pp.dateToken = vals[0];
+          }
+        });
+
+        renderParams();
+        fields.push(pj.length + ' parameter' + (pj.length !== 1 ? 's' : ''));
+
+        if (foIdx >= 0) {
+          const fo = pj[foIdx].fanOut;
+          setFanout(foMode);
+          document.getElementById('fo-param').value = String(params[foIdx].id);
+          if (fo.emailSource)            { document.getElementById('fo-esrc').value = fo.emailSource; onSourceChangeCore('fo-esrc','fo-eval'); }
+          if (fo.emailSourceValue)         document.getElementById('fo-eval-inp').value = fo.emailSourceValue;
+          if (fo.displayNameSource)      { document.getElementById('fo-dnsrc').value = fo.displayNameSource; onSourceChangeCore('fo-dnsrc','fo-dnval'); }
+          if (fo.displayNameSourceValue)   document.getElementById('fo-dnval-inp').value = fo.displayNameSourceValue;
+          if (fo.folderSource)           { document.getElementById('fo-fsrc').value = fo.folderSource; onSourceChangeCore('fo-fsrc','fo-fval'); }
+          if (fo.folderSourceValue)        document.getElementById('fo-fval-inp').value = fo.folderSourceValue;
+          if (fo.fileNameTemplate)         document.getElementById('fo-fntemplate').value = fo.fileNameTemplate;
+          fields.push('Fan-out: ' + foMode);
+        }
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  // Step 4 — Recipients (@RecipientsJson, CC/BCC only — TO is managed via DispatchJson)
+  if (rjStr) {
+    try {
+      const rj = JSON.parse(rjStr);
+      const ccBcc = rj.filter(r => r.role !== 'TO');
+      if (ccBcc.length > 0) {
+        const list = document.getElementById('rcp-list');
+        list.innerHTML = '';
+        ccBcc.forEach(r => {
+          const row = document.createElement('div');
+          row.className = 'rcp-row';
+          row.innerHTML =
+            '<input placeholder="Display Name" value="' + esc(r.name||'') + '" oninput="sync()"/>' +
+            '<input type="email" placeholder="email@example.com" value="' + esc(r.email||'') + '" oninput="sync()"/>' +
+            '<select onchange="sync()">' +
+              '<option value="TO">TO</option>' +
+              '<option value="CC"' + (r.role==='CC'?' selected':'') + '>CC</option>' +
+              '<option value="BCC"' + (r.role==='BCC'?' selected':'') + '>BCC</option>' +
+            '</select>' +
+            '<button onclick="this.parentElement.remove();sync()" title="Remove">\xd7</button>';
+          list.appendChild(row);
+        });
+        fields.push('Recipients');
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  sync();
+  msg.style.color = 'var(--green)';
+  msg.textContent = fields.length
+    ? '✓ Loaded: ' + fields.join(', ') + '. Review each step before generating SQL.'
+    : '✓ Parsed — review each step.';
 }
 
 // ════════════════════════════════════════════════════════════

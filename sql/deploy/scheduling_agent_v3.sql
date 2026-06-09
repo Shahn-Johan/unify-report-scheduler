@@ -17,6 +17,7 @@ IF OBJECT_ID('[schdl].[usp_UpdateDispatchStatus]', 'P')  IS NOT NULL DROP PROCED
 IF OBJECT_ID('[schdl].[usp_GetDueSchedules]',       'P')  IS NOT NULL DROP PROCEDURE [schdl].[usp_GetDueSchedules];
 IF OBJECT_ID('[schdl].[usp_BuildDispatchQueue]',    'P')  IS NOT NULL DROP PROCEDURE [schdl].[usp_BuildDispatchQueue];
 IF OBJECT_ID('[schdl].[usp_TestDispatch]',           'P')  IS NOT NULL DROP PROCEDURE [schdl].[usp_TestDispatch];
+IF OBJECT_ID('[schdl].[usp_GetScheduleJson]',        'P')  IS NOT NULL DROP PROCEDURE [schdl].[usp_GetScheduleJson];
 IF OBJECT_ID('[schdl].[usp_RegisterSchedule]',      'P')  IS NOT NULL DROP PROCEDURE [schdl].[usp_RegisterSchedule];
 GO
 
@@ -833,13 +834,14 @@ BEGIN
     BEGIN
         DECLARE
             @rName NVARCHAR(255),@rEmail NVARCHAR(320),@rRole NVARCHAR(10),
-            @rID INT,@rIndex INT=0,@rCount INT;
+            @rID INT,@rIndex INT=0,@rCount INT,
+            @rJson NVARCHAR(MAX);
 
         SELECT @rCount=COUNT(*) FROM OPENJSON(@RecipientsJson);
 
         WHILE @rIndex < @rCount
         BEGIN
-            DECLARE @rJson NVARCHAR(MAX) =
+            SET @rJson =
                 JSON_QUERY(@RecipientsJson,'$['+CAST(@rIndex AS NVARCHAR)+']');
             SET @rName  = JSON_VALUE(@rJson,'$.name');
             SET @rEmail = JSON_VALUE(@rJson,'$.email');
@@ -1112,13 +1114,100 @@ BEGIN
     -- ── NO PARAMETERS — emit one BULK row with parameters:[] ─────
     IF NOT EXISTS (SELECT 1 FROM #P)
     BEGIN
-        DECLARE @npTo NVARCHAR(MAX) = (
-            SELECT STRING_AGG(r.EmailAddress, ',')
+        DECLARE
+            @npTo       NVARCHAR(MAX),
+            @npFolder   NVARCHAR(1000),
+            @npFileName NVARCHAR(500),
+            @npTok      NVARCHAR(100),
+            @npRes      NVARCHAR(500),
+            @npLvSQL    NVARCHAR(600),
+            @npSfSQL    NVARCHAR(600),
+            @npDynSQL   NVARCHAR(2000);
+
+        -- Resolve combined email TO from Schedule delivery config
+        IF @sDeliveryMethod IN ('EMAIL','BOTH')
+        BEGIN
+            IF @sEmailSource = 'STATIC'
+                SET @npTo = @sEmailSourceValue;
+            ELSE IF @sEmailSource = 'LOOKUP_VIEW'
+            BEGIN
+                SET @npLvSQL = N'SELECT TOP 1 @e = EmailAddress FROM '
+                    + @sEmailSourceValue + N' WHERE LookupKey = @v';
+                EXEC sp_executesql @npLvSQL,
+                    N'@v NVARCHAR(500), @e NVARCHAR(MAX) OUTPUT',
+                    @v = @DocumentName, @e = @npTo OUTPUT;
+            END
+            ELSE IF @sEmailSource = 'SCALAR_FN'
+            BEGIN
+                SET @npSfSQL = N'SELECT @e = ' + @sEmailSourceValue + N'(@v)';
+                EXEC sp_executesql @npSfSQL,
+                    N'@v NVARCHAR(500), @e NVARCHAR(MAX) OUTPUT',
+                    @v = @DocumentName, @e = @npTo OUTPUT;
+            END
+            ELSE IF @sEmailSource = 'DYNAMIC_SQL'
+            BEGIN
+                SET @npDynSQL = N'SELECT TOP 1 @e = EmailAddress FROM ('
+                    + @sEmailSourceValue + N') AS _q';
+                EXEC sp_executesql @npDynSQL,
+                    N'@e NVARCHAR(MAX) OUTPUT', @e = @npTo OUTPUT;
+            END;
+            -- Append static TO recipients from ScheduleRecipient
+            SELECT @npTo = ISNULL(NULLIF(@npTo,'') + ',', '')
+                + ISNULL(STRING_AGG(r.EmailAddress, ','),'')
             FROM   [schdl].[ScheduleRecipient] sr
-            JOIN   [schdl].[Recipient]         r ON r.RecipientID = sr.RecipientID
-            WHERE  sr.ScheduleID   = @ScheduleID
-              AND  sr.RecipientRole = 'TO'
-              AND  r.IsActive       = 1);
+            JOIN   [schdl].[Recipient] r ON r.RecipientID = sr.RecipientID
+            WHERE  sr.ScheduleID = @ScheduleID AND sr.RecipientRole = 'TO' AND r.IsActive = 1;
+        END;
+
+        -- Resolve folder path from Schedule delivery config
+        IF @sDeliveryMethod IN ('FOLDER','BOTH')
+        BEGIN
+            IF @sFolderSource = 'STATIC'
+                SET @npFolder = @sFolderSourceValue;
+            ELSE IF @sFolderSource = 'LOOKUP_VIEW'
+            BEGIN
+                SET @npLvSQL = N'SELECT TOP 1 @e = FolderPath FROM '
+                    + @sFolderSourceValue + N' WHERE LookupKey = @v';
+                EXEC sp_executesql @npLvSQL,
+                    N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
+                    @v = @DocumentName, @e = @npFolder OUTPUT;
+            END
+            ELSE IF @sFolderSource = 'SCALAR_FN'
+            BEGIN
+                SET @npSfSQL = N'SELECT @e = ' + @sFolderSourceValue + N'(@v)';
+                EXEC sp_executesql @npSfSQL,
+                    N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
+                    @v = @DocumentName, @e = @npFolder OUTPUT;
+            END
+            ELSE IF @sFolderSource = 'DYNAMIC_SQL'
+            BEGIN
+                SET @npDynSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
+                    + @sFolderSourceValue + N') AS _q';
+                EXEC sp_executesql @npDynSQL,
+                    N'@e NVARCHAR(1000) OUTPUT', @e = @npFolder OUTPUT;
+            END;
+        END;
+
+        -- Resolve filename from Schedule delivery config (template takes priority over source)
+        IF @sFileNameTemplate IS NOT NULL
+        BEGIN
+            SET @npFileName = @sFileNameTemplate;
+            SET @npFileName = REPLACE(@npFileName, '{{REPORTNAME}}', @DocumentName);
+            SET @npFileName = REPLACE(@npFileName, '{{DISPLAYNAME}}', '');
+            DECLARE npt CURSOR LOCAL FAST_FORWARD FOR
+                SELECT Token, [schdl].[fn_ResolveDateToken](Token, @Today)
+                FROM   [schdl].[DateToken] WHERE IsActive = 1;
+            OPEN npt; FETCH NEXT FROM npt INTO @npTok, @npRes;
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                IF @npFileName LIKE '%' + @npTok + '%'
+                    SET @npFileName = REPLACE(@npFileName, @npTok, @npRes);
+                FETCH NEXT FROM npt INTO @npTok, @npRes;
+            END;
+            CLOSE npt; DEALLOCATE npt;
+        END
+        ELSE IF @sFileNameSource = 'STATIC'
+            SET @npFileName = @sFileNameSourceValue;
 
         DECLARE @npReqJson NVARCHAR(MAX) =
             '{"documentId":"'    + ISNULL(@ResolvedDocId,'') +
@@ -1133,10 +1222,10 @@ BEGIN
              ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,
              FolderPath)
         VALUES
-            (@LogID,@ScheduleID,'COMBINED','EMAIL',NULL,
-             NULL,NULL,@npReqJson,
+            (@LogID,@ScheduleID,'COMBINED',@sDeliveryMethod,NULL,
+             NULL,@npFileName,@npReqJson,
              ISNULL(@npTo,''),@Cc,@Bcc,@EmailSubject,@EmailBody,
-             NULL);
+             @npFolder);
 
         RETURN;  -- nothing more to do
     END;
@@ -1441,6 +1530,8 @@ BEGIN
                 @bTo        NVARCHAR(MAX),
                 @bFileName  NVARCHAR(500),
                 @bFolder    NVARCHAR(1000),
+                @bsTok      NVARCHAR(100),
+                @bsRes      NVARCHAR(500),
                 @bfTok      NVARCHAR(100),
                 @bfRes      NVARCHAR(500),
                 @lvBulkSQL  NVARCHAR(600),
@@ -1793,6 +1884,293 @@ BEGIN
     END;
 END;
 GO
+
+
+-- 4.5  usp_GetScheduleJson
+--
+--  Reads a registered schedule and reconstructs the exact JSON and
+--  EXEC statement needed to re-register it. Useful for editing an
+--  existing schedule in the HTML builder or auditing live config.
+--
+--  Returns one row:
+--    ScheduleName   — schedule display name
+--    DocumentName   — document/report name
+--    DispatchJson   — @DispatchJson value (delivery config)
+--    ParametersJson — @ParametersJson value (incl. fanOut block where present)
+--    RecipientsJson — @RecipientsJson value (static recipients)
+--    RegisterSQL    — ready-to-run EXEC usp_RegisterSchedule call
+--
+--  Usage:
+--    EXEC schdl.usp_GetScheduleJson @ScheduleName = 'BRM Production Report - Monthly';
+CREATE PROCEDURE [schdl].[usp_GetScheduleJson]
+    @ScheduleName NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE
+        @ScheduleID             INT,
+        @DocumentName           NVARCHAR(255),
+        @ReportEndpoint         NVARCHAR(500),
+        @OutputFormat           NVARCHAR(20),
+        @Language               INT,
+        @Confidentiality        NVARCHAR(50),
+        @FrequencyType          NVARCHAR(20),
+        @RunTime                TIME,
+        @DayOfWeek              TINYINT,
+        @DayOfMonth             SMALLINT,
+        @IntervalMinutes        INT,
+        @WindowStart            TIME,
+        @WindowEnd              TIME,
+        @StartDate              DATE,
+        @EndDate                DATE,
+        @Subject                NVARCHAR(500),
+        @BodyTemplate           NVARCHAR(MAX),
+        @DeliveryMethod         NVARCHAR(10),
+        @EmailSource            NVARCHAR(20),
+        @EmailSourceValue       NVARCHAR(1000),
+        @FileNameTemplate       NVARCHAR(500),
+        @FileNameSource         NVARCHAR(20),
+        @FileNameSourceValue    NVARCHAR(1000),
+        @FolderSource           NVARCHAR(20),
+        @FolderSourceValue      NVARCHAR(1000);
+
+    SELECT
+        @ScheduleID          = s.ScheduleID,
+        @DocumentName        = d.DocumentName,
+        @ReportEndpoint      = d.ReportEndpoint,
+        @OutputFormat        = d.DefaultOutputFormat,
+        @Language            = d.DefaultLanguage,
+        @Confidentiality     = d.DefaultConfidentiality,
+        @FrequencyType       = s.FrequencyType,
+        @RunTime             = s.RunTime,
+        @DayOfWeek           = s.DayOfWeek,
+        @DayOfMonth          = s.DayOfMonth,
+        @IntervalMinutes     = s.IntervalMinutes,
+        @WindowStart         = s.WindowStart,
+        @WindowEnd           = s.WindowEnd,
+        @StartDate           = s.StartDate,
+        @EndDate             = s.EndDate,
+        @Subject             = s.Subject,
+        @BodyTemplate        = s.BodyTemplate,
+        @DeliveryMethod      = ISNULL(s.DeliveryMethod, 'EMAIL'),
+        @EmailSource         = s.EmailSource,
+        @EmailSourceValue    = s.EmailSourceValue,
+        @FileNameTemplate    = s.FileNameTemplate,
+        @FileNameSource      = s.FileNameSource,
+        @FileNameSourceValue = s.FileNameSourceValue,
+        @FolderSource        = s.FolderSource,
+        @FolderSourceValue   = s.FolderSourceValue
+    FROM [schdl].[Schedule] s
+    JOIN [schdl].[Document] d ON d.ReportID = s.ReportID
+    WHERE s.ScheduleName = @ScheduleName;
+
+    IF @ScheduleID IS NULL
+    BEGIN
+        SELECT 'ERROR'                                    AS Result,
+               'Schedule not found: ' + @ScheduleName    AS Message;
+        RETURN;
+    END;
+
+    -- Build @DispatchJson
+    DECLARE @DispatchJson NVARCHAR(MAX) = '{';
+    SET @DispatchJson += '"deliveryMethod":"' + STRING_ESCAPE(@DeliveryMethod,'json') + '"';
+    IF @EmailSource IS NOT NULL
+        SET @DispatchJson += ',"emailSource":"'         + STRING_ESCAPE(@EmailSource,'json')      + '"';
+    IF @EmailSourceValue IS NOT NULL
+        SET @DispatchJson += ',"emailSourceValue":"'    + STRING_ESCAPE(@EmailSourceValue,'json')  + '"';
+    IF @FileNameTemplate IS NOT NULL
+        SET @DispatchJson += ',"fileNameTemplate":"'    + STRING_ESCAPE(@FileNameTemplate,'json')  + '"';
+    IF @FileNameSource IS NOT NULL
+        SET @DispatchJson += ',"fileNameSource":"'      + STRING_ESCAPE(@FileNameSource,'json')    + '"';
+    IF @FileNameSourceValue IS NOT NULL
+        SET @DispatchJson += ',"fileNameSourceValue":"' + STRING_ESCAPE(@FileNameSourceValue,'json') + '"';
+    IF @FolderSource IS NOT NULL
+        SET @DispatchJson += ',"folderSource":"'        + STRING_ESCAPE(@FolderSource,'json')     + '"';
+    IF @FolderSourceValue IS NOT NULL
+        SET @DispatchJson += ',"folderSourceValue":"'   + STRING_ESCAPE(@FolderSourceValue,'json') + '"';
+    SET @DispatchJson += '}';
+
+    -- Build @ParametersJson — one element per ScheduleParameter row
+    DECLARE @ParametersJson NVARCHAR(MAX) = '';
+    DECLARE
+        @pID            INT,
+        @pName          NVARCHAR(100),
+        @pType          NVARCHAR(50),
+        @pRequired      BIT,
+        @pSort          INT,
+        @pValue         NVARCHAR(MAX),
+        @pVQ            NVARCHAR(MAX),
+        @pHasDC         BIT,
+        @pIsPrimary     BIT,
+        @pMode          NVARCHAR(12),
+        @pEmailSrc      NVARCHAR(20),
+        @pEmailSrcVal   NVARCHAR(1000),
+        @pDNSrc         NVARCHAR(20),
+        @pDNSrcVal      NVARCHAR(1000),
+        @pFNSrc         NVARCHAR(20),
+        @pFNSrcVal      NVARCHAR(1000),
+        @pFNTemplate    NVARCHAR(500),
+        @pFolSrc        NVARCHAR(20),
+        @pFolSrcVal     NVARCHAR(1000),
+        @pFirst         BIT = 1,
+        @pChunk         NVARCHAR(MAX);
+
+    DECLARE pc CURSOR LOCAL FAST_FORWARD FOR
+        SELECT
+            dp.ParameterID,
+            dp.ParameterName,
+            dp.DataType,
+            dp.IsRequired,
+            dp.SortOrder,
+            sp.ParameterValue,
+            sp.ParameterValueQuery,
+            CASE WHEN dc.ConfigID IS NOT NULL THEN 1 ELSE 0 END,
+            ISNULL(dc.IsPrimaryDispatchKey, 0),
+            dc.DispatchMode,
+            dc.EmailSource,
+            dc.EmailSourceValue,
+            dc.DisplayNameSource,
+            dc.DisplayNameSourceValue,
+            dc.FileNameSource,
+            dc.FileNameSourceValue,
+            dc.FileNameTemplate,
+            dc.FolderSource,
+            dc.FolderSourceValue
+        FROM [schdl].[ScheduleParameter] sp
+        JOIN [schdl].[DocumentParameter] dp ON dp.ParameterID = sp.ParameterID
+        LEFT JOIN [schdl].[ParameterDispatchConfig] dc ON dc.ParameterID = dp.ParameterID
+        WHERE sp.ScheduleID = @ScheduleID
+        ORDER BY dp.SortOrder;
+
+    OPEN pc;
+    FETCH NEXT FROM pc INTO
+        @pID, @pName, @pType, @pRequired, @pSort, @pValue, @pVQ,
+        @pHasDC, @pIsPrimary, @pMode,
+        @pEmailSrc, @pEmailSrcVal, @pDNSrc, @pDNSrcVal,
+        @pFNSrc, @pFNSrcVal, @pFNTemplate, @pFolSrc, @pFolSrcVal;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        IF @pFirst = 0 SET @ParametersJson += ',';
+        SET @pFirst = 0;
+
+        SET @pChunk  = '{';
+        SET @pChunk += '"name":"'      + STRING_ESCAPE(@pName,'json')  + '"';
+        SET @pChunk += ',"type":"'     + STRING_ESCAPE(@pType,'json')  + '"';
+        SET @pChunk += ',"required":'  + CASE WHEN @pRequired = 1 THEN 'true' ELSE 'false' END;
+        SET @pChunk += ',"sortOrder":' + CAST(@pSort AS NVARCHAR);
+        SET @pChunk += ',"value":"'    + STRING_ESCAPE(ISNULL(@pValue,''),'json') + '"';
+        IF @pVQ IS NOT NULL
+            SET @pChunk += ',"valueQuery":"' + STRING_ESCAPE(@pVQ,'json') + '"';
+
+        -- Emit fanOut block only for the primary dispatch key
+        IF @pHasDC = 1 AND @pIsPrimary = 1
+        BEGIN
+            SET @pChunk += ',"fanOut":{';
+            SET @pChunk += '"isPrimary":true';
+            SET @pChunk += ',"mode":"' + STRING_ESCAPE(ISNULL(@pMode,'INDIVIDUAL'),'json') + '"';
+            IF @pEmailSrc IS NOT NULL
+                SET @pChunk += ',"emailSource":"'            + STRING_ESCAPE(@pEmailSrc,'json')    + '"';
+            IF @pEmailSrcVal IS NOT NULL
+                SET @pChunk += ',"emailSourceValue":"'       + STRING_ESCAPE(@pEmailSrcVal,'json') + '"';
+            IF @pDNSrc IS NOT NULL
+                SET @pChunk += ',"displayNameSource":"'      + STRING_ESCAPE(@pDNSrc,'json')       + '"';
+            IF @pDNSrcVal IS NOT NULL
+                SET @pChunk += ',"displayNameSourceValue":"' + STRING_ESCAPE(@pDNSrcVal,'json')    + '"';
+            IF @pFNTemplate IS NOT NULL
+                SET @pChunk += ',"fileNameTemplate":"'       + STRING_ESCAPE(@pFNTemplate,'json')  + '"';
+            IF @pFNSrc IS NOT NULL
+                SET @pChunk += ',"fileNameSource":"'         + STRING_ESCAPE(@pFNSrc,'json')       + '"';
+            IF @pFNSrcVal IS NOT NULL
+                SET @pChunk += ',"fileNameSourceValue":"'    + STRING_ESCAPE(@pFNSrcVal,'json')    + '"';
+            IF @pFolSrc IS NOT NULL
+                SET @pChunk += ',"folderSource":"'           + STRING_ESCAPE(@pFolSrc,'json')      + '"';
+            IF @pFolSrcVal IS NOT NULL
+                SET @pChunk += ',"folderSourceValue":"'      + STRING_ESCAPE(@pFolSrcVal,'json')   + '"';
+            SET @pChunk += '}';
+        END;
+
+        SET @pChunk += '}';
+        SET @ParametersJson += @pChunk;
+
+        FETCH NEXT FROM pc INTO
+            @pID, @pName, @pType, @pRequired, @pSort, @pValue, @pVQ,
+            @pHasDC, @pIsPrimary, @pMode,
+            @pEmailSrc, @pEmailSrcVal, @pDNSrc, @pDNSrcVal,
+            @pFNSrc, @pFNSrcVal, @pFNTemplate, @pFolSrc, @pFolSrcVal;
+    END;
+    CLOSE pc; DEALLOCATE pc;
+
+    SET @ParametersJson = '[' + @ParametersJson + ']';
+
+    -- Build @RecipientsJson from ScheduleRecipient (all static recipients)
+    DECLARE @RecipientsJson NVARCHAR(MAX);
+    SELECT @RecipientsJson =
+        ISNULL(
+            '[' +
+            STRING_AGG(
+                '{"name":"'   + STRING_ESCAPE(ISNULL(r.RecipientName,''),'json') +
+                '","email":"' + STRING_ESCAPE(r.EmailAddress,'json') +
+                '","role":"'  + sr.RecipientRole + '"}',
+                ','
+            ) WITHIN GROUP (ORDER BY sr.RecipientRole, r.EmailAddress)
+            + ']',
+        '[]')
+    FROM [schdl].[ScheduleRecipient] sr
+    JOIN [schdl].[Recipient] r ON r.RecipientID = sr.RecipientID
+    WHERE sr.ScheduleID = @ScheduleID AND r.IsActive = 1;
+
+    -- Build RegisterSQL — ready-to-run EXEC call
+    DECLARE @RegisterSQL NVARCHAR(MAX);
+    SET @RegisterSQL  = 'EXEC [schdl].[usp_RegisterSchedule]' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @DocumentName    = N''' + REPLACE(@DocumentName,   '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @ReportEndpoint  = N''' + REPLACE(@ReportEndpoint, '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    IF @OutputFormat <> 'xlsx'
+        SET @RegisterSQL += '    @OutputFormat    = '''  + @OutputFormat + ''',' + CHAR(13)+CHAR(10);
+    IF @Language <> 1
+        SET @RegisterSQL += '    @Language        = '    + CAST(@Language AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+    IF @Confidentiality <> 'normal'
+        SET @RegisterSQL += '    @Confidentiality = '''  + @Confidentiality + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @ScheduleName    = N''' + REPLACE(@ScheduleName,   '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @FrequencyType   = '''  + @FrequencyType + ''',' + CHAR(13)+CHAR(10);
+    IF @RunTime IS NOT NULL
+        SET @RegisterSQL += '    @RunTime         = ''' + CONVERT(NVARCHAR(8),@RunTime,108)     + ''',' + CHAR(13)+CHAR(10);
+    IF @DayOfWeek IS NOT NULL
+        SET @RegisterSQL += '    @DayOfWeek       = '   + CAST(@DayOfWeek AS NVARCHAR)  + ',' + CHAR(13)+CHAR(10);
+    IF @DayOfMonth IS NOT NULL
+        SET @RegisterSQL += '    @DayOfMonth      = '   + CAST(@DayOfMonth AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+    IF @IntervalMinutes IS NOT NULL
+        SET @RegisterSQL += '    @IntervalMinutes = '   + CAST(@IntervalMinutes AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+    IF @WindowStart IS NOT NULL
+        SET @RegisterSQL += '    @WindowStart     = ''' + CONVERT(NVARCHAR(8),@WindowStart,108) + ''',' + CHAR(13)+CHAR(10);
+    IF @WindowEnd IS NOT NULL
+        SET @RegisterSQL += '    @WindowEnd       = ''' + CONVERT(NVARCHAR(8),@WindowEnd,108)   + ''',' + CHAR(13)+CHAR(10);
+    IF @StartDate IS NOT NULL AND @StartDate <> '2000-01-01'
+        SET @RegisterSQL += '    @StartDate       = ''' + CONVERT(NVARCHAR(10),@StartDate,23)  + ''',' + CHAR(13)+CHAR(10);
+    IF @EndDate IS NOT NULL
+        SET @RegisterSQL += '    @EndDate         = ''' + CONVERT(NVARCHAR(10),@EndDate,23)    + ''',' + CHAR(13)+CHAR(10);
+    IF @Subject IS NOT NULL
+        SET @RegisterSQL += '    @Subject         = N''' + REPLACE(@Subject,      '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    IF @BodyTemplate IS NOT NULL
+        SET @RegisterSQL += '    @BodyTemplate    = N''' + REPLACE(@BodyTemplate, '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @DispatchJson    = N''' + REPLACE(@DispatchJson,    '''','''''') + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @ParametersJson  = N''' + REPLACE(@ParametersJson, '''','''''') + '''';
+    IF @RecipientsJson <> '[]'
+        SET @RegisterSQL += ',' + CHAR(13)+CHAR(10)
+            + '    @RecipientsJson  = N''' + REPLACE(@RecipientsJson, '''','''''') + '''';
+    SET @RegisterSQL += ';';
+
+    SELECT
+        @ScheduleName    AS ScheduleName,
+        @DocumentName    AS DocumentName,
+        @DispatchJson    AS DispatchJson,
+        @ParametersJson  AS ParametersJson,
+        @RecipientsJson  AS RecipientsJson,
+        @RegisterSQL     AS RegisterSQL;
+END;
+GO
+
 
 -- ============================================================
 --  SECTION 5  ENVIRONMENT SETUP
