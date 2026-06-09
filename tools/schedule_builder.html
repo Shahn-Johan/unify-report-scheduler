@@ -1,0 +1,2345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Schedule Builder</title>
+<style>
+:root {
+  --bg:       #0d1117;
+  --s1:       #161b22;
+  --s2:       #21262d;
+  --s3:       #30363d;
+  --border:   #30363d;
+  --accent:   #58a6ff;
+  --accent2:  #a371f7;
+  --green:    #3fb950;
+  --yellow:   #d29922;
+  --red:      #f85149;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --label:    #7d8590;
+  --mono:     'Cascadia Code','Fira Code',monospace;
+  --sans:     'Inter','Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;
+  height:100vh;display:grid;
+  grid-template-columns:220px 440px 1fr 1fr;
+  grid-template-rows:52px 1fr;
+}
+
+/* ── HEADER ── */
+header{
+  grid-column:1/-1;background:var(--s1);border-bottom:1px solid var(--border);
+  padding:0 20px;display:flex;align-items:center;gap:12px;
+}
+.logo{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 8px;border-radius:4px;
+}
+header h1{font-size:14px;font-weight:600}
+header p{color:var(--muted);font-size:12px;margin-left:4px}
+.hdr-right{margin-left:auto;display:flex;gap:8px}
+
+/* ── STEP WIZARD ── */
+#wizard{
+  overflow-y:auto;
+  overflow-x:hidden;
+  border-right:1px solid var(--border);
+  border-left:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  grid-column:2;
+}
+.step{
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.step-header{
+  padding:14px 18px;display:flex;align-items:center;gap:12px;
+  cursor:pointer;user-select:none;background:var(--s1);
+  transition:background .15s;
+}
+.step-header:hover{background:var(--s2)}
+.step-num{
+  width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;flex-shrink:0;
+  background:var(--s3);color:var(--muted);border:1px solid var(--border);
+  transition:all .2s;
+}
+.step.active .step-num{background:var(--accent);color:#fff;border-color:var(--accent)}
+.step.complete .step-num{background:var(--green);color:#fff;border-color:var(--green)}
+.step.complete .step-num::before{content:'✓'}
+.step.complete .step-num span{display:none}
+.step-title{font-size:13px;font-weight:600;flex:1}
+.step-summary{font-size:11px;color:var(--muted);margin-top:1px}
+.step-chevron{color:var(--muted);transition:transform .2s;margin-left:auto}
+.step.active .step-chevron{transform:rotate(180deg)}
+.step-body{display:none;padding:16px 18px 20px;background:var(--bg);flex-direction:column;gap:14px}
+.step.active .step-body{display:flex}
+
+/* ── FORM ELEMENTS ── */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{
+  font-size:11px;font-weight:600;color:var(--label);
+  letter-spacing:.04em;display:flex;align-items:center;gap:5px;
+}
+.req{color:var(--red)}
+.opt{color:var(--muted);font-weight:400}
+.hint{margin-left:auto;font-size:10px;font-weight:400;color:var(--muted);letter-spacing:0}
+input,select,textarea{
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--sans);font-size:12px;
+  padding:8px 10px;outline:none;width:100%;transition:border-color .15s;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:60px;font-family:var(--mono);font-size:11px}
+select option{background:var(--s2)}
+.row{display:grid;gap:10px}
+.row.c2{grid-template-columns:1fr 1fr}
+.row.c3{grid-template-columns:1fr 1fr 1fr}
+.info{
+  font-size:11px;color:var(--muted);line-height:1.6;
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:6px;padding:10px 12px;
+}
+.info strong{color:var(--text)}
+.info code{
+  background:var(--s3);color:var(--accent);
+  padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:10px;
+}
+
+/* ── CHOICE CARDS ── */
+.cards{display:grid;gap:8px}
+.cards.c2{grid-template-columns:1fr 1fr}
+.cards.c3{grid-template-columns:1fr 1fr 1fr}
+.card{
+  border:2px solid var(--border);border-radius:8px;padding:12px;
+  cursor:pointer;transition:border-color .15s,background .15s;background:var(--s1);
+}
+.card:hover{border-color:var(--accent);background:var(--s2)}
+.card.selected{border-color:var(--accent);background:#0d1f3c}
+.card-icon{font-size:18px;margin-bottom:6px;line-height:1}
+.card-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px}
+.card.selected .card-title{color:var(--accent)}
+.card-desc{font-size:10px;color:var(--muted);line-height:1.5}
+
+/* ── FREQ ROWS ── */
+.freq-row{display:none}
+.freq-row.show{display:grid}
+
+/* ── PARAMETER CARDS ── */
+#params-area{display:flex;flex-direction:column;gap:8px}
+.param-card{
+  border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  background:var(--s1);
+}
+.param-head{
+  padding:10px 14px;display:flex;align-items:center;gap:8px;
+  cursor:pointer;background:var(--s2);
+}
+.param-name-text{font-weight:600;font-size:12px;flex:1}
+.ptag{
+  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:10px;
+}
+.ptag.string{background:#1a3322;color:#3fb950}
+.ptag.date{background:#1e2d4a;color:#58a6ff}
+.ptag.int{background:#2d1f3f;color:#a371f7}
+.ptag.fanout{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.ptag.dynamic{background:#2a1800;border:1px solid var(--yellow);color:var(--yellow)}
+.vsource-tabs{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px}
+.vstab{
+  flex:1;text-align:center;padding:6px 4px;font-size:11px;font-weight:600;
+  color:var(--muted);cursor:pointer;background:var(--s2);border:none;transition:all .15s;
+}
+.vstab:hover{color:var(--text);background:var(--s3)}
+.vstab.on{background:var(--accent);color:#fff}
+.vstab.on.dynamic{background:var(--yellow);color:#0d1117}
+.dyn-query-wrap{display:flex;flex-direction:column;gap:6px}
+.dyn-src-hint{
+  font-size:10px;color:var(--muted);line-height:1.6;
+  background:var(--s2);border:1px solid var(--border);border-radius:5px;
+  padding:7px 10px;margin-bottom:6px;
+}
+.dyn-src-hint code{font-family:var(--mono);color:var(--accent);font-size:10px}
+.use-asis-wrap{display:flex;gap:6px;align-items:stretch}
+.use-asis-wrap input,.use-asis-wrap textarea{flex:1}
+.use-asis-btn{
+  background:var(--s3);border:1px solid var(--border);border-radius:5px;
+  color:var(--muted);cursor:pointer;font-size:10px;font-weight:600;
+  padding:4px 8px;white-space:nowrap;letter-spacing:.02em;transition:all .15s;
+  flex-shrink:0;align-self:stretch;
+}
+.use-asis-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.val-error{
+  background:#1a0808;border:1px solid var(--red);border-radius:6px;
+  color:#fca5a5;font-size:11px;padding:8px 12px;display:flex;align-items:center;gap:8px;
+}
+.val-error::before{content:'✗';font-weight:700;flex-shrink:0}
+.val-ok{
+  background:#0a2018;border:1px solid #2d4a2d;border-radius:6px;
+  color:#86efac;font-size:11px;padding:8px 12px;display:flex;align-items:center;gap:8px;
+}
+.val-ok::before{content:'✓';font-weight:700;flex-shrink:0}
+.dyn-src-hint strong{color:var(--text)}
+.dyn-query-hint{font-size:10px;color:var(--muted);line-height:1.5;
+  background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:7px 10px}
+.dyn-query-hint code{font-family:var(--mono);color:var(--yellow);font-size:10px}
+.param-body{display:none;padding:14px;flex-direction:column;gap:12px;border-top:1px solid var(--border)}
+.param-body.open{display:flex}
+.param-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 2px;line-height:1}
+.param-remove:hover{color:var(--red)}
+
+/* pipe tag editor */
+.pipe-wrap{
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  padding:6px;min-height:38px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;
+}
+.ptv{
+  background:var(--s3);border:1px solid var(--border);border-radius:4px;
+  padding:3px 8px;font-size:11px;display:flex;align-items:center;gap:5px;
+}
+.ptv button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.ptv button:hover{color:var(--red)}
+.pipe-add{display:flex;gap:6px;margin-top:6px}
+.pipe-add input{flex:1}
+.pipe-add button{
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  color:var(--accent);cursor:pointer;font-size:18px;padding:2px 10px;line-height:1;
+}
+.pipe-add button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* date tab */
+.date-tabs{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px}
+.dtab{
+  flex:1;text-align:center;padding:6px;font-size:11px;font-weight:600;
+  color:var(--muted);cursor:pointer;background:var(--s2);border:none;transition:all .15s;
+}
+.dtab.on{background:var(--accent);color:#fff}
+
+/* delivery config */
+.dlv-section{
+  border:1px solid var(--border);border-radius:6px;padding:12px;
+  background:var(--s2);display:flex;flex-direction:column;gap:10px;
+}
+.dlv-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--label)}
+.source-grid{display:grid;grid-template-columns:140px 1fr;gap:8px;align-items:start}
+.src-val{display:none;flex-direction:column;gap:5px}
+.src-val.show{display:flex}
+
+/* fanout badge on param */
+.fanout-notice{
+  font-size:10px;padding:5px 10px;border-radius:5px;
+  background:#0d1f3c;border:1px solid var(--accent);color:var(--accent);
+  display:flex;align-items:center;gap:6px;
+}
+/* toggle */
+.tog-wrap{display:flex;align-items:center;gap:10px}
+.tog{position:relative;width:36px;height:20px;cursor:pointer}
+.tog input{opacity:0;width:0;height:0}
+.tog-sl{
+  position:absolute;inset:0;background:var(--s3);border-radius:20px;transition:background .2s;
+}
+.tog-sl:before{
+  content:'';position:absolute;width:14px;height:14px;border-radius:50%;
+  background:#fff;top:3px;left:3px;transition:transform .2s;
+}
+.tog input:checked + .tog-sl{background:var(--accent)}
+.tog input:checked + .tog-sl:before{transform:translateX(16px)}
+.tog-label{font-size:12px;font-weight:600;color:var(--label)}
+
+/* recipients */
+.rcp-row{display:grid;grid-template-columns:1fr 1.4fr 80px 30px;gap:6px;align-items:center}
+.rcp-row button{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;font-size:14px;height:32px}
+.rcp-row button:hover{color:var(--red);border-color:var(--red)}
+
+/* add btn */
+.add-btn{
+  background:none;border:1px dashed var(--border);border-radius:6px;
+  color:var(--muted);cursor:pointer;font-size:11px;padding:8px;width:100%;
+}
+.add-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* validation */
+.vbar{
+  border-radius:6px;padding:9px 12px;font-size:11px;line-height:1.7;border:1px solid;
+}
+.vbar.ok{background:#0a2018;border-color:#2d4a2d;color:#86efac}
+.vbar.warn{background:#251e0a;border-color:#4a3a0d;color:#fcd34d}
+.vbar ul{list-style:none;padding:0}
+.vbar li::before{margin-right:5px}
+.vbar.ok li::before{content:'✓'}
+.vbar.warn li::before{content:'⚠'}
+
+/* step actions */
+.step-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+.btn{
+  border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 16px;
+  border:1px solid;transition:all .15s;
+}
+.btn-ghost{background:none;border-color:var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2);border-color:var(--accent2)}
+
+/* ── SQL PANEL ── */
+
+#sql-toolbar{
+  background:var(--s1);border-bottom:1px solid var(--border);
+  padding:10px 16px;display:flex;align-items:center;gap:8px;
+}
+#sql-toolbar span{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#sql-out{
+  flex:1;overflow-y:auto;padding:16px 18px;
+  font-family:var(--mono);font-size:11px;line-height:1.7;
+  color:#adbac7;white-space:pre;tab-size:2;
+}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.str{color:#a5d6ff}.cm{color:#6e7681;font-style:italic}.num{color:#f8c555}.va{color:#79c0ff}
+
+/* ── TOKEN SIDEBAR ── */
+/* ── OBJECT BUILDER ── */
+#obj-panel{
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+  border-right:1px solid var(--border);background:var(--bg);
+  grid-column:3;grid-row:2;
+}
+.panel-hdr{
+  background:var(--s2);border-bottom:1px solid var(--border);padding:10px 14px;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--label);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.obj-tab{
+  flex:1;padding:8px 6px;background:var(--s2);border:none;border-bottom:2px solid transparent;
+  color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.obj-tab:hover{color:var(--text);background:var(--s3)}
+.obj-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg)}
+.obj-tab-body{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.obj-tab-body.active{display:flex}
+.obj-contract{
+  padding:10px 12px;background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.obj-contract-title{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--label);margin-bottom:6px}
+.obj-contract-cols{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.obj-col-row{display:grid;grid-template-columns:140px 1fr;gap:6px;font-size:10px}
+.obj-col-name{font-family:var(--mono);color:var(--accent);font-size:10px}
+.obj-col-desc{color:var(--muted)}
+.obj-contract-note{font-size:10px;color:var(--muted);font-style:italic;border-top:1px solid var(--border);padding-top:5px;margin-top:4px}
+.obj-contract-note code{font-family:var(--mono);color:var(--yellow);font-size:9px}
+.obj-editor{
+  flex:1;resize:none;border:none;border-radius:0;background:var(--bg);
+  color:#adbac7;font-family:var(--mono);font-size:11px;line-height:1.6;
+  padding:10px 12px;outline:none;min-height:0;
+  border-top:1px solid var(--border);
+}
+.obj-editor:focus{background:#0d1117}
+.obj-footer{
+  padding:8px 12px;background:var(--s2);border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.obj-include-tog{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--label);cursor:pointer}
+.obj-include-tog input{width:auto;cursor:pointer}
+.dyn-example{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:10px 12px}
+.dyn-example-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px}
+.dyn-example-desc{font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.5}
+.dyn-example pre{font-family:var(--mono);font-size:10px;color:var(--accent);white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:7px 9px;border-radius:4px;border:1px solid var(--border)}
+.dyn-example-copy{margin-top:6px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:10px;padding:3px 8px}
+.dyn-example-copy:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* sql panel */
+#sql-panel{
+  display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;
+  grid-column:4;grid-row:2;
+}
+
+#tok-side{
+  border-right:1px solid var(--border);background:var(--s1);
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;
+  grid-column:1;grid-row:2;
+}
+.tok-hdr{
+  background:var(--s2);border-bottom:1px solid var(--border);padding:10px 12px;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--label);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+#tok-search{
+  margin:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:5px;
+  color:var(--text);font-size:11px;padding:6px 9px;outline:none;width:calc(100% - 20px);flex-shrink:0;
+}
+#tok-search:focus{border-color:var(--accent)}
+.tok-special{
+  padding:0 10px 6px;flex-shrink:0;display:flex;flex-direction:column;gap:4px;
+  border-bottom:1px solid var(--border);
+}
+.tok-special-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);padding:6px 2px 3px}
+.ph-badge{
+  display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;
+  padding:6px 8px;border-radius:5px;background:var(--s2);border:1px solid var(--border);cursor:pointer;
+}
+.ph-badge:hover{border-color:var(--accent)}
+.ph-badge code{font-family:var(--mono);font-size:11px;color:var(--yellow)}
+.ph-badge-desc{font-size:10px;color:var(--muted)}
+.ph-badge button{background:none;border:1px solid var(--border);border-radius:3px;color:var(--muted);cursor:pointer;font-size:9px;padding:2px 5px;white-space:nowrap}
+.ph-badge button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tok-offset{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.tok-offset-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.tok-offset-preview{font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:4px}
+.tok-offset-desc{font-size:10px;color:var(--muted);margin-bottom:6px}
+.tok-offset-controls{display:flex;gap:6px;align-items:center}
+.tok-offset-controls select,.tok-offset-controls input{width:auto;font-size:11px;padding:4px 6px}
+.tok-offset-controls input{width:48px}
+.tok-offset-copy{background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:10px;padding:3px 7px}
+.tok-offset-copy:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+#tok-list{flex:1;overflow-y:auto;padding:8px 10px 20px;display:flex;flex-direction:column;gap:2px}
+.tok-group{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 4px 3px;border-bottom:1px solid var(--border);margin-bottom:2px}
+.tok-row{
+  display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;
+  padding:6px 6px;border-radius:5px;cursor:pointer;border:1px solid transparent;
+}
+.tok-row:hover{background:var(--s2);border-color:var(--border)}
+.tok-tok{font-family:var(--mono);font-size:10px;color:var(--accent)}
+.tok-desc{font-size:10px;color:var(--muted);margin-top:1px}
+.tok-copy{background:none;border:1px solid var(--border);border-radius:3px;color:var(--muted);cursor:pointer;font-size:9px;padding:2px 5px;white-space:nowrap}
+.tok-copy:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+#toast{
+  position:fixed;bottom:20px;right:20px;background:var(--green);color:#0a2018;
+  font-weight:700;font-size:12px;padding:8px 16px;border-radius:6px;
+  opacity:0;pointer-events:none;transition:opacity .25s;z-index:999;
+}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">sched</div>
+  <h1>Schedule Builder</h1>
+  <p>— step-by-step registration</p>
+  <div class="hdr-right">
+    <button class="btn btn-ghost" onclick="copySQL()">Copy SQL</button>
+    <button class="btn btn-primary" onclick="downloadSQL()">Download .sql</button>
+  </div>
+</header>
+
+<!-- ════════════ WIZARD ════════════ -->
+<div id="wizard">
+
+  <!-- STEP 1: DOCUMENT -->
+  <div class="step active" id="s1">
+    <div class="step-header" onclick="toggleStep('s1')">
+      <div class="step-num"><span>1</span></div>
+      <div>
+        <div class="step-title">Report Document</div>
+        <div class="step-summary" id="s1-sum">Which report should be generated?</div>
+      </div>
+      <svg class="step-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="step-body">
+      <div class="info">The <strong>Document Name</strong> is the stable name of the report in the system. It is used to look up the document ID automatically at runtime — no IDs to manage manually.</div>
+      <div class="row c2">
+        <div class="field">
+          <label>Document Name <span class="req">*</span></label>
+          <input id="docName" placeholder="BRM Production Report" oninput="if(!schedNameEdited){const n=autoSchedName();if(n)document.getElementById('schedName').value=n;}sync()"/>
+        </div>
+        <div class="field">
+          <label>Output Format</label>
+          <select id="outputFormat" onchange="sync()">
+            <option value="xlsx">xlsx — Excel spreadsheet</option>
+            <option value="pdf">pdf — PDF document</option>
+            <option value="csv">csv — Comma-separated</option>
+          </select>
+        </div>
+      </div>
+      <div class="row c2">
+        <div class="field">
+          <label>Language <span class="opt">(default 1)</span></label>
+          <input id="language" type="number" value="1" min="1" oninput="sync()"/>
+        </div>
+        <div class="field">
+          <label>Confidentiality</label>
+          <select id="confidentiality" onchange="sync()">
+            <option value="normal">Normal</option>
+            <option value="restricted">Restricted</option>
+            <option value="confidential">Confidential</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Import JSON -->
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div class="field">
+          <label>Import from Request JSON <span class="opt">— paste to auto-fill parameters</span></label>
+          <div style="position:relative">
+            <textarea id="importJson" rows="5" placeholder='Paste {"documentId":"...","parameters":[...]} here'></textarea>
+            <button onclick="parseJson()" style="position:absolute;right:8px;top:8px;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:10px;font-weight:700;padding:5px 9px">Parse →</button>
+          </div>
+          <div id="import-msg" style="font-size:11px;margin-top:2px"></div>
+        </div>
+      </div>
+
+      <div class="step-actions">
+        <button class="btn btn-primary" onclick="goStep('s2')">Next: Schedule Timing →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: TIMING -->
+  <div class="step" id="s2">
+    <div class="step-header" onclick="toggleStep('s2')">
+      <div class="step-num"><span>2</span></div>
+      <div>
+        <div class="step-title">Schedule Timing</div>
+        <div class="step-summary" id="s2-sum">When should this run?</div>
+      </div>
+      <svg class="step-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="step-body">
+      <div class="row c2">
+        <div class="field">
+          <label>Schedule Name <span class="req">*</span>
+            <span id="sched-name-reset" style="margin-left:auto;font-size:10px;font-weight:400;color:var(--muted);cursor:pointer;display:none" onclick="resetSchedName()" title="Reset to auto-generated name">↺ auto</span>
+          </label>
+          <input id="schedName" placeholder="BRM Report — Monthly"
+            oninput="schedNameEdited=true;document.getElementById('sched-name-reset').style.display='inline';sync()"/>
+        </div>
+        <div class="field">
+          <label>Frequency <span class="req">*</span></label>
+          <select id="freq" onchange="onFreq()">
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY" selected>Monthly</option>
+            <option value="ADHOC">Ad-hoc (one shot)</option>
+            <option value="INTERVAL">Interval (every N minutes)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="freq-row row c2" id="fr-time">
+        <div class="field">
+          <label>Run Time <span class="req">*</span></label>
+          <input id="runTime" type="time" value="06:00" oninput="sync()"/>
+        </div>
+      </div>
+      <div class="freq-row row c2" id="fr-dow">
+        <div class="field">
+          <label>Day of Week <span class="req">*</span></label>
+          <select id="dow" onchange="sync()">
+            <option value="0">Sunday</option>
+            <option value="1" selected>Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+      </div>
+      <div class="freq-row row c2" id="fr-dom">
+        <div class="field">
+          <label>Day of Month <span class="req">*</span> <span class="hint">1–31, or -1 for last day</span></label>
+          <input id="dom" type="number" value="1" min="-1" max="31" oninput="sync()"/>
+        </div>
+      </div>
+      <div class="freq-row row c2" id="fr-interval">
+        <div class="field">
+          <label>Every (minutes) <span class="req">*</span></label>
+          <input id="intervalMin" type="number" value="60" min="1" oninput="sync()"/>
+        </div>
+      </div>
+      <div class="freq-row row c2" id="fr-window">
+        <div class="field">
+          <label>Window Start <span class="opt">(optional)</span></label>
+          <input id="winStart" type="time" oninput="sync()"/>
+        </div>
+        <div class="field">
+          <label>Window End <span class="opt">(optional)</span></label>
+          <input id="winEnd" type="time" oninput="sync()"/>
+        </div>
+      </div>
+
+      <div id="adhoc-note" class="info" style="display:none">
+        <strong>Ad-hoc</strong> schedules fire once on the next trigger run, then automatically disable themselves. No timing configuration needed.
+      </div>
+
+      <div class="row c2">
+        <div class="field">
+          <label>Start Date <span class="opt">(default: any time)</span></label>
+          <input id="startDate" type="date" oninput="sync()"/>
+        </div>
+        <div class="field">
+          <label>End Date <span class="opt">(blank = runs indefinitely)</span></label>
+          <input id="endDate" type="date" oninput="sync()"/>
+        </div>
+      </div>
+
+      <div class="step-actions">
+        <button class="btn btn-ghost" onclick="goStep('s1')">← Back</button>
+        <button class="btn btn-primary" onclick="goStep('s3')">Next: Parameters →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: PARAMETERS -->
+  <div class="step" id="s3">
+    <div class="step-header" onclick="toggleStep('s3')">
+      <div class="step-num"><span>3</span></div>
+      <div>
+        <div class="step-title">Report Parameters</div>
+        <div class="step-summary" id="s3-sum">What values does the report need?</div>
+      </div>
+      <svg class="step-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="step-body">
+      <div class="info">Parameters are <strong>optional</strong>. Leave empty for reports that execute with no inputs. You can also import them from a Request JSON in Step 1.<br><br>
+      For each parameter, set its value. Date parameters support <strong>tokens</strong> (like <code>{{PREV_MONTH_END}}</code>) that resolve automatically at runtime — see the Token Reference panel on the right.</div>
+      <div id="params-area"></div>
+      <button class="add-btn" onclick="addParam()">+ Add parameter</button>
+      <div class="step-actions">
+        <button class="btn btn-ghost" onclick="goStep('s2')">← Back</button>
+        <button class="btn btn-primary" onclick="goStep('s4')">Next: Delivery →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: DELIVERY -->
+  <div class="step" id="s4">
+    <div class="step-header" onclick="toggleStep('s4')">
+      <div class="step-num"><span>4</span></div>
+      <div>
+        <div class="step-title">Delivery</div>
+        <div class="step-summary" id="s4-sum">How should the report be delivered?</div>
+      </div>
+      <svg class="step-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="step-body">
+
+      <div class="info">
+        Configure the <strong>combined / bulk delivery</strong> here — this is what gets used when fan-out is <em>None</em>,
+        and also for the combined row when fan-out is <em>Individual + Combined</em>.<br><br>
+        For <strong>per-entity</strong> delivery (different email address / folder per value), configure that in <strong>Step 5</strong>.
+      </div>
+
+      <!-- Delivery type cards -->
+      <div class="field">
+        <label>Delivery Type <span class="req">*</span></label>
+        <div class="cards c3">
+          <div class="card selected" id="dt-EMAIL" onclick="setDelivery('EMAIL')">
+            <div class="card-icon">✉</div>
+            <div class="card-title">Email</div>
+            <div class="card-desc">Send the report as an email attachment to one or more recipients.</div>
+          </div>
+          <div class="card" id="dt-FOLDER" onclick="setDelivery('FOLDER')">
+            <div class="card-icon">📁</div>
+            <div class="card-title">Folder Drop</div>
+            <div class="card-desc">Write the report file to a network or cloud folder location.</div>
+          </div>
+          <div class="card" id="dt-BOTH" onclick="setDelivery('BOTH')">
+            <div class="card-icon">✦</div>
+            <div class="card-title">Both</div>
+            <div class="card-desc">Send by email AND drop to a folder — simultaneously.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email fields -->
+      <div id="dlv-email-fields" style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- Email recipient resolver — full source options -->
+        <div class="dlv-section">
+          <div class="dlv-label">✉ Combined Email Recipient</div>
+          <div class="info" style="margin-bottom:8px">
+            Who receives the combined report? Can be a static address, resolved from a view or function, or a dynamic SQL query.<br>
+            <span style="color:var(--muted);font-size:10px">For <strong>per-entity</strong> email addresses when using fan-out, configure those in Step 5.</span>
+          </div>
+          <div class="source-grid">
+            <div class="field">
+              <label>Source</label>
+              <select id="dlv-esrc" onchange="onBulkSourceChange('dlv-esrc','dlv-eval','dlvemail')">
+                <option value="STATIC">Static — fixed address</option>
+                <option value="SCALAR_FN">Scalar Function</option>
+                <option value="LOOKUP_VIEW">Lookup View</option>
+                <option value="DYNAMIC_SQL">Dynamic SQL</option>
+              </select>
+            </div>
+            <div class="src-val show" id="dlv-eval">
+              <label id="dlv-eval-lbl">Email Address</label>
+              <div class="use-asis-wrap">
+                <input id="dlv-eval-inp" placeholder="reports@example.com" oninput="sync()"/>
+                <button class="use-asis-btn" onclick="useAsIs('dlv-eval-inp')" title="Use placeholder as-is">Use as-is</button>
+              </div>
+            </div>
+          </div>
+          <div id="dlv-esrc-hint" class="dyn-src-hint" style="display:none"></div>
+          <div id="rcp-validation" style="margin-top:6px;display:none"></div>
+        </div>
+
+        <!-- Subject / Body -->
+        <div class="field">
+          <label>Email Subject
+            <span class="opt">({{REPORTNAME}}, date tokens, {{DISPLAYNAME}} when fan-out active)</span>
+          </label>
+          <div class="use-asis-wrap">
+            <input id="subject" placeholder="{{REPORTNAME}} — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}" oninput="sync()"/>
+            <button class="use-asis-btn" onclick="useAsIs('subject')" title="Use placeholder as-is">Use as-is</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Email Body <span class="opt">(tokens supported)</span></label>
+          <div class="use-asis-wrap">
+            <textarea id="body" rows="3" placeholder="Please find attached your report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}." oninput="sync()"></textarea>
+            <button class="use-asis-btn" onclick="useAsIs('body')" title="Use placeholder as-is">Use as-is</button>
+          </div>
+        </div>
+
+        <!-- CC / BCC static recipients -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--label);letter-spacing:.04em;display:block;margin-bottom:6px">
+            CC / BCC Recipients
+            <span class="opt"> — optional static recipients on every delivery</span>
+          </label>
+          <div id="rcp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+          <button class="add-btn" onclick="addRecipient()">+ Add CC / BCC recipient</button>
+        </div>
+
+      </div>
+
+      <!-- Folder + Filename — shown when delivery includes folder drop -->
+      <div id="dlv-folder-fields" style="display:none;flex-direction:column;gap:14px">
+
+        <div class="info">
+          The <strong>Folder Path</strong> and <strong>File Name</strong> can each be static, resolved from a view or function, or driven by a SQL query.<br>
+          When fan-out is active in Step 5, you can also configure per-entity folder resolution there —
+          whatever you set here applies to the combined / bulk row.
+        </div>
+
+        <!-- Folder Path resolver -->
+        <div class="dlv-section">
+          <div class="dlv-label">📁 Folder Path</div>
+          <div class="source-grid">
+            <div class="field">
+              <label>Source</label>
+              <select id="bulk-fsrc" onchange="onBulkSourceChange('bulk-fsrc','bulk-fval','bulkfolder')">
+                <option value="STATIC">Static — same path every run</option>
+                <option value="SCALAR_FN">Scalar Function</option>
+                <option value="LOOKUP_VIEW">Lookup View</option>
+                <option value="DYNAMIC_SQL">Dynamic SQL</option>
+              </select>
+            </div>
+            <div class="src-val show" id="bulk-fval">
+              <label id="bulk-fval-lbl">Folder Path</label>
+              <div class="use-asis-wrap"><input id="bulk-fval-inp" placeholder="\\server\reports\monthly\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('bulk-fval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
+            </div>
+          </div>
+          <div id="bulk-fsrc-hint" class="dyn-src-hint" style="display:none"></div>
+          <div id="bulk-fval-validation" style="margin-top:4px;display:none"></div>
+        </div>
+
+        <!-- File Name resolver -->
+        <div class="dlv-section">
+          <div class="dlv-label">📄 File Name <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — extension added automatically</span></div>
+          <div class="info" style="margin-bottom:8px">
+            Override the default filename. Leave blank to use the API default.<br>
+            Supports <code>{{REPORTNAME}}</code>, <code>{{DISPLAYNAME}}</code> (fan-out only), and any date token e.g. <code>{{PREV_MONTH_END}}</code>.
+          </div>
+          <div class="field" style="margin-bottom:6px">
+            <label>Template <span class="hint">no extension needed</span></label>
+            <div class="use-asis-wrap"><input id="staticFilename" placeholder="{{REPORTNAME}}_{{PREV_MONTH_END}}" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('staticFilename')" title="Copy placeholder text into field">Use as-is</button></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin:0 0 8px">— or resolve from a source —</div>
+          <div class="source-grid">
+            <div class="field">
+              <label>Source</label>
+              <select id="bulk-fnsrc" onchange="onBulkSourceChange('bulk-fnsrc','bulk-fnval','bulkfilename')">
+                <option value="">— none (use template above) —</option>
+                <option value="STATIC">Static</option>
+                <option value="SCALAR_FN">Scalar Function</option>
+                <option value="LOOKUP_VIEW">Lookup View</option>
+                <option value="DYNAMIC_SQL">Dynamic SQL</option>
+              </select>
+            </div>
+            <div class="src-val" id="bulk-fnval">
+              <label id="bulk-fnval-lbl">Value</label>
+              <div class="use-asis-wrap"><input id="bulk-fnval-inp" placeholder="dbo.fn_GetReportName" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('bulk-fnval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
+            </div>
+          </div>
+          <div id="bulk-fnsrc-hint" class="dyn-src-hint" style="display:none"></div>
+        </div>
+
+      </div>
+
+      <div class="step-actions">
+        <button class="btn btn-ghost" onclick="goStep('s3')">← Back</button>
+        <button class="btn btn-primary" onclick="goStep('s5')">Next: Fan-out →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5: FAN-OUT -->
+  <div class="step" id="s5">
+    <div class="step-header" onclick="toggleStep('s5')">
+      <div class="step-num"><span>5</span></div>
+      <div>
+        <div class="step-title">Fan-out Configuration</div>
+        <div class="step-summary" id="s5-sum">Optional — one report per value, or one combined?</div>
+      </div>
+      <svg class="step-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="step-body">
+
+      <div class="info">
+        <strong>Fan-out is optional.</strong> Skip this step for a single combined report delivered to the address / folder configured in Step 4.<br><br>
+        Enable fan-out when a parameter has multiple values and each value should produce its own <em>separate</em> report —
+        each delivered to that value's own specific email address or folder.<br><br>
+        <strong>Combined row</strong> — when using <em>Individual + Combined</em>, the combined row always uses the Step 4 delivery config.
+        The fields here only apply to the <strong>individual per-entity rows</strong>.<br><br>
+        <strong>Only one parameter</strong> can drive fan-out at a time.
+      </div>
+
+      <!-- Fan-out mode -->
+      <div class="field">
+        <label>Fan-out Mode</label>
+        <div class="cards c3">
+          <div class="card selected" id="fo-NONE" onclick="setFanout('NONE')">
+            <div class="card-icon">📋</div>
+            <div class="card-title">None (Combined)</div>
+            <div class="card-desc">One report, all values together. Delivered to static recipients or folder.</div>
+          </div>
+          <div class="card" id="fo-INDIVIDUAL" onclick="setFanout('INDIVIDUAL')">
+            <div class="card-icon">👤</div>
+            <div class="card-title">Individual</div>
+            <div class="card-desc">One report per value. Each delivered to that value's own recipient/folder.</div>
+          </div>
+          <div class="card" id="fo-BOTH" onclick="setFanout('BOTH')">
+            <div class="card-icon">👥</div>
+            <div class="card-title">Individual + Combined</div>
+            <div class="card-desc">Individual reports for each value AND one combined report to the static recipient.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fan-out config — only shown when not NONE -->
+      <div id="fo-config" style="display:none;flex-direction:column;gap:14px">
+
+        <div class="field">
+          <label>Which parameter drives fan-out? <span class="req">*</span></label>
+          <select id="fo-param" onchange="onFanoutParamChange()">
+            <option value="">— select parameter —</option>
+          </select>
+        </div>
+
+        <!-- Per-value resolver: email -->
+        <div id="fo-email-cfg" style="display:none">
+          <div class="dlv-section">
+            <div class="dlv-label">✉ Email — resolve per value</div>
+            <div class="info" style="margin-bottom:8px">
+              For each fan-out value, how should we find the recipient's email address?<br>
+              <strong>Example:</strong> value <code>BRM001</code> → look up in <code>schdl.vw_BRMEmail</code> → returns <code>john@example.com</code>
+            </div>
+            <div class="source-grid">
+              <div class="field">
+                <label>Source</label>
+                <select id="fo-esrc" onchange="onSourceChangeFull('fo-esrc','fo-eval')">
+                  <option value="STATIC">Static — same address for all</option>
+                  <option value="LOOKUP_VIEW">Lookup View</option>
+                  <option value="SCALAR_FN">Scalar Function</option>
+                  <option value="DYNAMIC_SQL">Dynamic SQL</option>
+                </select>
+              </div>
+              <div class="src-val show" id="fo-eval">
+                <label id="fo-eval-lbl">Address</label>
+                <div class="use-asis-wrap"><input id="fo-eval-inp" placeholder="bulk@example.com" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-eval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
+              </div>
+            </div>
+            <div id="fo-esrc-hint" class="dyn-src-hint" style="display:none"></div>
+            <div id="fo-eval-validation" style="margin-top:4px;display:none"></div>
+            <div class="field">
+              <label>Combined / Bulk Email Address <span class="hint">used for combined row when mode is Individual + Combined</span></label>
+              <div class="use-asis-wrap"><input id="fo-bulk-email" placeholder="reports-combined@example.com" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-bulk-email')" title="Copy placeholder text into field">Use as-is</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-value resolver: folder -->
+        <div id="fo-folder-cfg" style="display:none">
+          <div class="dlv-section">
+            <div class="dlv-label">📁 Folder — resolve per value</div>
+            <div class="info" style="margin-bottom:8px">
+              For each fan-out value, how should we find the destination folder path?<br>
+              <strong>Example:</strong> value <code>BRM001</code> → look up in <code>schdl.vw_BRMFolder</code> → returns <code>\\server\reports\BRM001\</code>
+            </div>
+            <div class="source-grid">
+              <div class="field">
+                <label>Source</label>
+                <select id="fo-fsrc" onchange="onSourceChangeFull('fo-fsrc','fo-fval')">
+                  <option value="STATIC">Static — same folder for all</option>
+                  <option value="LOOKUP_VIEW">Lookup View</option>
+                  <option value="SCALAR_FN">Scalar Function</option>
+                  <option value="DYNAMIC_SQL">Dynamic SQL</option>
+                </select>
+              </div>
+              <div class="src-val show" id="fo-fval">
+                <label id="fo-fval-lbl">Folder Path</label>
+                <div class="use-asis-wrap"><input id="fo-fval-inp" placeholder="\\server\reports\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-fval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
+              </div>
+            </div>
+            <div class="field">
+              <label>Combined Folder Path <span class="hint">used for combined row</span></label>
+              <div class="use-asis-wrap"><input id="fo-bulk-folder" placeholder="\\server\reports\combined\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-bulk-folder')" title="Copy placeholder text into field">Use as-is</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Entity label -->
+        <div class="dlv-section">
+          <div class="dlv-label">🏷 Entity Label <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — for filenames and email personalisation</span></div>
+          <div class="info" style="margin-bottom:8px">
+            The human-readable name for each fan-out value. Becomes <code>{{DISPLAYNAME}}</code> in filenames and email text.<br>
+            <strong>Example:</strong> value <code>BRM001</code> → Entity Label <code>John Smith</code> → filename <code>Report_John Smith_2026-05.xlsx</code>
+          </div>
+          <div id="fo-dnsrc-hint" class="dyn-src-hint" style="display:none"></div>
+        <div class="source-grid">
+            <div class="field">
+              <label>Source</label>
+              <select id="fo-dnsrc" onchange="onSourceChangeFull('fo-dnsrc','fo-dnval')">
+                <option value="">None — use raw value</option>
+                <option value="STATIC">Static</option>
+                <option value="LOOKUP_VIEW">Lookup View</option>
+                <option value="SCALAR_FN">Scalar Function</option>
+                <option value="DYNAMIC_SQL">Dynamic SQL</option>
+              </select>
+            </div>
+            <div class="src-val" id="fo-dnval">
+              <label id="fo-dnval-lbl">Value</label>
+              <div class="use-asis-wrap"><input id="fo-dnval-inp" placeholder="schdl.vw_BRMDisplayName" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-dnval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- File name -->
+        <div class="dlv-section">
+          <div class="dlv-label">📄 File Name Override <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — extension added automatically</span></div>
+          <div class="info" style="margin-bottom:8px">
+            Override the default filename for each report. Leave blank to use the API default.<br>
+            Supported placeholders: <code>{{DISPLAYNAME}}</code> &nbsp;<code>{{REPORTNAME}}</code> &nbsp;any date token e.g. <code>{{PREV_MONTH_END}}</code>
+          </div>
+          <div class="field">
+            <label>Filename Template <span class="hint">no extension needed — added from Output Format</span></label>
+            <input id="fo-fntemplate" placeholder="{{REPORTNAME}}_{{DISPLAYNAME}}_{{PREV_MONTH_END}}" oninput="sync()"/>
+          </div>
+        </div>
+
+      </div><!-- /fo-config -->
+
+      <!-- Validation -->
+      <div id="s5-validation"></div>
+
+      <div class="step-actions">
+        <button class="btn btn-ghost" onclick="goStep('s4')">← Back</button>
+        <button class="btn btn-primary" onclick="finalise()">Review SQL ✓</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wizard -->
+
+<!-- ════════════ OBJECT BUILDER ════════════ -->
+<div id="obj-panel">
+  <div class="panel-hdr">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+    Object Builder
+    <span id="obj-count-badge" style="margin-left:8px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0;text-transform:none;display:none"></span>
+    <span id="obj-context" style="margin-left:6px;font-weight:400;text-transform:none;color:var(--muted);font-size:10px;letter-spacing:0">— select a source type in Step 5</span>
+  </div>
+
+  <div id="obj-empty" style="padding:20px 16px;color:var(--muted);font-size:12px;line-height:1.7">
+    When you choose <strong style="color:var(--text)">Lookup View</strong> or <strong style="color:var(--text)">Scalar Function</strong> as a source type in Step 5, this panel shows a ready-to-edit template for that object.<br><br>
+    Write or paste your code here, then toggle it into the SQL output below.
+  </div>
+
+  <div id="obj-content" style="display:none;flex-direction:column;height:100%">
+
+    <!-- Object tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0">
+      <button class="obj-tab active" id="otab-view"    onclick="setObjTab('view')">Lookup View</button>
+      <button class="obj-tab"        id="otab-fn"      onclick="setObjTab('fn')">Scalar Function</button>
+      <button class="obj-tab"        id="otab-dynhelp" onclick="setObjTab('dynhelp')">Dynamic SQL Help</button>
+    </div>
+
+    <!-- VIEW tab -->
+    <div id="otab-view-body" class="obj-tab-body active">
+      <div class="obj-contract">
+        <div class="obj-contract-title">Contract — columns this view must expose</div>
+        <div id="view-contract-cols" class="obj-contract-cols"></div>
+        <div class="obj-contract-note">The engine runs: <code>SELECT TOP 1 &lt;TargetColumn&gt; FROM &lt;view&gt; WHERE LookupKey = '&lt;value&gt;'</code></div>
+      </div>
+      <div style="padding:10px 12px 4px;display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <label style="font-size:11px;font-weight:600;color:var(--label)">View name</label>
+        <input id="obj-view-name" style="flex:1;font-size:11px;padding:5px 8px" placeholder="schdl.vw_BRMEmail" oninput="onObjNameChange()"/>
+      </div>
+      <textarea id="obj-view-sql" class="obj-editor" spellcheck="false" oninput="onObjCodeChange()"></textarea>
+      <div class="obj-footer">
+        <label class="obj-include-tog">
+          <input type="checkbox" id="obj-view-include" checked onchange="sync()"/>
+          <span>Include in SQL output</span>
+        </label>
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="copyObjSQL('view')">Copy object SQL</button>
+      </div>
+    </div>
+
+    <!-- FUNCTION tab -->
+    <div id="otab-fn-body" class="obj-tab-body">
+      <div class="obj-contract">
+        <div class="obj-contract-title">Contract — function signature required</div>
+        <div id="fn-contract-sig" class="obj-contract-cols"></div>
+        <div class="obj-contract-note">The engine runs: <code>SELECT @result = &lt;fn&gt;(@value)</code></div>
+      </div>
+      <div style="padding:10px 12px 4px;display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <label style="font-size:11px;font-weight:600;color:var(--label)">Function name</label>
+        <input id="obj-fn-name" style="flex:1;font-size:11px;padding:5px 8px" placeholder="dbo.fn_GetBRMEmail" oninput="onObjNameChange()"/>
+      </div>
+      <textarea id="obj-fn-sql" class="obj-editor" spellcheck="false" oninput="onObjCodeChange()"></textarea>
+      <div class="obj-footer">
+        <label class="obj-include-tog">
+          <input type="checkbox" id="obj-fn-include" checked onchange="sync()"/>
+          <span>Include in SQL output</span>
+        </label>
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="copyObjSQL('fn')">Copy object SQL</button>
+      </div>
+    </div>
+
+    <!-- DYNAMIC SQL HELP tab -->
+    <div id="otab-dynhelp-body" class="obj-tab-body" style="overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+      <div class="obj-contract">
+        <div class="obj-contract-title">Dynamic SQL — no object needed</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:4px">
+          Dynamic SQL is written inline in the source value field. Use <code style="color:var(--accent)">{VALUE}</code> as the placeholder — it is replaced with each fan-out value at runtime.
+        </div>
+      </div>
+      <div id="dyn-examples" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════ SQL PANEL ════════════ -->
+<div id="sql-panel">
+  <div id="sql-toolbar">
+    <span>Generated SQL</span>
+    <button class="btn btn-ghost" style="margin-left:auto" onclick="copySQL()">Copy</button>
+    <button class="btn btn-primary" onclick="downloadSQL()">Download</button>
+  </div>
+  <div id="sql-out">-- Complete the steps on the left to generate SQL</div>
+</div>
+
+<!-- ════════════ TOKEN SIDEBAR (now LEFT) ════════════ -->
+<div id="tok-side">
+  <div class="tok-hdr">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Token Reference
+  </div>
+  <div class="tok-special">
+    <div class="tok-special-label">Template Placeholders</div>
+    <div class="ph-badge" onclick="copyTok('{{REPORTNAME}}',this)">
+      <div><code>{{REPORTNAME}}</code><div class="ph-badge-desc">Document name from Step 1</div></div>
+      <button onclick="event.stopPropagation();copyTok('{{REPORTNAME}}',this)">Copy</button>
+    </div>
+    <div class="ph-badge" onclick="copyTok('{{DISPLAYNAME}}',this)">
+      <div><code>{{DISPLAYNAME}}</code><div class="ph-badge-desc">Entity label per fan-out row</div></div>
+      <button onclick="event.stopPropagation();copyTok('{{DISPLAYNAME}}',this)">Copy</button>
+    </div>
+  </div>
+  <div class="tok-offset">
+    <div class="tok-offset-title">Dynamic Day Offset Builder</div>
+    <div class="tok-offset-preview" id="to-prev">{{TODAY-1}}</div>
+    <div class="tok-offset-desc" id="to-desc">1 day before execution date</div>
+    <div class="tok-offset-controls">
+      <select id="to-dir" onchange="refreshOffset()"><option value="-">− Before</option><option value="+">+ After</option></select>
+      <input id="to-n" type="number" value="1" min="1" oninput="refreshOffset()"/>
+      <span style="font-size:11px;color:var(--muted)">days</span>
+      <button class="tok-offset-copy" onclick="copyTok(document.getElementById('to-prev').textContent,this)">Copy</button>
+    </div>
+  </div>
+  <input id="tok-search" placeholder="Search tokens…" oninput="filterToks(this.value)"/>
+  <div id="tok-list"></div>
+</div>
+
+<div id="toast">Copied ✓</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+let params = [], pidx = 0;
+let delivery = 'EMAIL';   // EMAIL | FOLDER | BOTH
+let fanout   = 'NONE';    // NONE | INDIVIDUAL | BOTH
+let schedNameEdited = false;  // true once user manually types in schedule name
+
+// ════════════════════════════════════════════════════════════
+//  STEP NAV
+// ════════════════════════════════════════════════════════════
+function toggleStep(id) {
+  const s = document.getElementById(id);
+  const wasActive = s.classList.contains('active');
+  document.querySelectorAll('.step').forEach(el => {
+    el.classList.remove('active');
+  });
+  if (!wasActive) s.classList.add('active');
+}
+function goStep(id) {
+  document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+  const s = document.getElementById(id);
+  s.classList.add('active');
+  s.scrollIntoView({ behavior:'smooth', block:'start' });
+  sync();
+}
+function finalise() {
+  sync();
+  // Mark all steps complete, scroll to SQL
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('sql-out').scrollIntoView({ behavior:'smooth' });
+}
+
+// ════════════════════════════════════════════════════════════
+//  FREQUENCY
+// ════════════════════════════════════════════════════════════
+const FREQ_LABELS = {
+  DAILY:'Daily', WEEKLY:'Weekly', MONTHLY:'Monthly',
+  ADHOC:'Ad-hoc', INTERVAL:'Interval'
+};
+
+function autoSchedName() {
+  const doc  = (document.getElementById('docName').value||'').trim();
+  const freq = document.getElementById('freq').value;
+  if (!doc) return '';
+  return doc + ' — ' + (FREQ_LABELS[freq]||freq);
+}
+
+function resetSchedName() {
+  schedNameEdited = false;
+  document.getElementById('sched-name-reset').style.display = 'none';
+  const name = autoSchedName();
+  document.getElementById('schedName').value = name;
+  sync();
+}
+
+function onFreq() {
+  const f = document.getElementById('freq').value;
+  const show = (id,v) => {
+    const el = document.getElementById(id);
+    el.classList.toggle('show', v);
+    if (el.classList.contains('row')) el.style.display = v ? 'grid' : 'none';
+  };
+  show('fr-time',     ['DAILY','WEEKLY','MONTHLY'].includes(f));
+  show('fr-dow',      f==='WEEKLY');
+  show('fr-dom',      f==='MONTHLY');
+  show('fr-interval', f==='INTERVAL');
+  show('fr-window',   f==='INTERVAL');
+  document.getElementById('adhoc-note').style.display = f==='ADHOC' ? '' : 'none';
+  if (!schedNameEdited) {
+    const name = autoSchedName();
+    if (name) document.getElementById('schedName').value = name;
+  }
+  sync();
+}
+
+// ════════════════════════════════════════════════════════════
+//  DELIVERY
+// ════════════════════════════════════════════════════════════
+function setDelivery(d) {
+  delivery = d;
+  ['EMAIL','FOLDER','BOTH'].forEach(t => {
+    document.getElementById('dt-'+t).classList.toggle('selected', t===d);
+  });
+  document.getElementById('dlv-email-fields').style.display   = ['EMAIL','BOTH'].includes(d) ? 'flex' : 'none';
+  document.getElementById('dlv-folder-fields').style.display  = ['FOLDER','BOTH'].includes(d) ? 'flex' : 'none';
+
+  // Update fan-out config visibility
+  updateFanoutDeliverySections();
+  sync();
+}
+
+// ════════════════════════════════════════════════════════════
+//  FAN-OUT
+// ════════════════════════════════════════════════════════════
+function setFanout(f) {
+  fanout = f;
+  ['NONE','INDIVIDUAL','BOTH'].forEach(t => {
+    document.getElementById('fo-'+t).classList.toggle('selected', t===f);
+  });
+  const cfg = document.getElementById('fo-config');
+  cfg.style.display = f==='NONE' ? 'none' : 'flex';
+  if (f !== 'NONE') {
+    populateFanoutParamSelect();
+    updateFanoutDeliverySections();
+  }
+  sync();
+}
+
+function populateFanoutParamSelect() {
+  const sel = document.getElementById('fo-param');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— select parameter —</option>';
+  params.filter(p => p.valueSource==='dynamic' || p.values.length > 1 || p.values.some(v => v.includes('|'))).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = (p.name || '(unnamed)') + (p.valueSource==='dynamic' ? ' — dynamic query' : '');
+    if (String(p.id) === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+  // If only one multi-value param, auto-select it
+  const multi = params.filter(p => p.valueSource==='dynamic' || p.values.length > 1);
+  if (multi.length === 1 && !sel.value) sel.value = multi[0].id;
+}
+
+function onFanoutParamChange() { sync(); }
+
+function onBulkSourceChange(selId, valId, context) {
+  const src = document.getElementById(selId).value;
+  const wrap = document.getElementById(valId);
+  const hintId = selId + '-hint';
+  const hintEl = document.getElementById(hintId);
+
+  // Show/hide value input
+  if (!src || src === '') {
+    wrap.classList.remove('show');
+  } else {
+    wrap.classList.add('show');
+    const info = SRC_LABELS[src] || { lbl:'Value', ph:'' };
+    const lbl = document.getElementById(valId + '-lbl');
+    const inp = document.getElementById(valId + '-inp');
+    if (lbl) lbl.textContent = info.lbl;
+    if (inp) inp.placeholder = info.ph;
+  }
+
+  // Show/hide context hint for DYNAMIC_SQL
+  if (hintEl) {
+    if (src === 'DYNAMIC_SQL') {
+      const cn = BULK_SOURCE_COLS[context] || { col:'Value', hint:'Must return the named column' };
+      hintEl.style.display = '';
+      hintEl.innerHTML =
+        '<strong>Dynamic SQL</strong> — write a <code>SELECT</code> with no <code>{VALUE}</code> placeholder needed.<br>' +
+        '<span style="color:var(--yellow)">' + cn.hint + '</span><br>' +
+        'Example: <code>SELECT \'value\' AS [' + cn.col + ']</code>';
+    } else {
+      hintEl.style.display = 'none';
+    }
+  }
+
+  // Trigger Object Builder for view/function types
+  const nameInputId = valId + '-inp';
+  const targetCtx = context === 'bulkfolder' ? 'folder' : 'displayname';
+  if (src === 'LOOKUP_VIEW' || src === 'SCALAR_FN') {
+    triggerObjectBuilder(targetCtx, src, nameInputId);
+  } else {
+    // Only clear object builder if it was previously triggered by this selector
+    if (objContext && objContext.nameInputId === nameInputId) {
+      document.getElementById('obj-empty').style.display = '';
+      document.getElementById('obj-content').style.display = 'none';
+      document.getElementById('obj-context').textContent = '— select a source type in Step 5';
+      objContext = null;
+    }
+  }
+
+  sync();
+}
+
+function updateFanoutDeliverySections() {
+  const showEmail  = ['EMAIL','BOTH'].includes(delivery);
+  const showFolder = ['FOLDER','BOTH'].includes(delivery);
+  const cfg = document.getElementById('fo-email-cfg');
+  const fcfg = document.getElementById('fo-folder-cfg');
+  if (cfg)  cfg.style.display  = showEmail  && fanout!=='NONE' ? 'block' : 'none';
+  if (fcfg) fcfg.style.display = showFolder && fanout!=='NONE' ? 'block' : 'none';
+}
+
+// ════════════════════════════════════════════════════════════
+//  SOURCE SELECTORS (generic)
+// ════════════════════════════════════════════════════════════
+const SRC_LABELS = {
+  STATIC: { lbl:'Value / Address', ph:'e.g. bulk@example.com or \\\\server\\reports\\' },
+  LOOKUP_VIEW: { lbl:'View name', ph:'schdl.vw_BRMEmail — must expose LookupKey, EmailAddress' },
+  SCALAR_FN:   { lbl:'Function name', ph:'dbo.fn_GetBrokerEmail' },
+  DYNAMIC_SQL: { lbl:'SQL (use {VALUE})', ph:"SELECT EmailAddress FROM dbo.BRM WHERE Code = '{VALUE}'" },
+};
+
+function onSourceChangeCore(selId, valId) {
+  const src = document.getElementById(selId).value;
+  const wrap = document.getElementById(valId);
+  if (!src || src==='') { wrap.classList.remove('show'); return; }
+  wrap.classList.add('show');
+  const info = SRC_LABELS[src] || { lbl:'Value', ph:'' };
+  const lbl = wrap.querySelector('[id$="-lbl"]');
+  const inp = wrap.querySelector('[id$="-inp"]');
+  if (lbl) lbl.textContent = info.lbl;
+  if (inp) inp.placeholder = info.ph;
+  sync();
+}
+
+// ════════════════════════════════════════════════════════════
+//  PARAMETERS
+// ════════════════════════════════════════════════════════════
+const TOKEN_LIST = [
+  {g:'Today',         v:'{{TODAY}}',             d:'Execution date (YYYY-MM-DD)'},
+  {g:'Today',         v:'TODAY-N',               d:'{{TODAY-N}} — N days BEFORE today, enter N below'},
+  {g:'Today',         v:'TODAY+N',               d:'{{TODAY+N}} — N days AFTER today, enter N below'},
+  {g:'Current Week',  v:'{{WEEK_START}}',         d:'Monday of current week'},
+  {g:'Current Week',  v:'{{WEEK_END}}',           d:'Sunday of current week'},
+  {g:'Previous Week', v:'{{PREV_WEEK_START}}',    d:'Monday of previous week'},
+  {g:'Previous Week', v:'{{PREV_WEEK_END}}',      d:'Sunday of previous week'},
+  {g:'Current Month', v:'{{MONTH_START}}',        d:'First day of current month'},
+  {g:'Current Month', v:'{{MONTH_END}}',          d:'Last day of current month'},
+  {g:'Prev Month',    v:'{{PREV_MONTH_START}}',   d:'First day of previous month'},
+  {g:'Prev Month',    v:'{{PREV_MONTH_END}}',     d:'Last day of previous month'},
+  {g:'Next Month',    v:'{{NEXT_MONTH_START}}',   d:'First day of next month'},
+  {g:'Next Month',    v:'{{NEXT_MONTH_END}}',     d:'Last day of next month'},
+  {g:'Quarter',       v:'{{QUARTER_START}}',      d:'First day of current quarter'},
+  {g:'Quarter',       v:'{{QUARTER_END}}',        d:'Last day of current quarter'},
+  {g:'Prev Quarter',  v:'{{PREV_QUARTER_START}}', d:'First day of previous quarter'},
+  {g:'Prev Quarter',  v:'{{PREV_QUARTER_END}}',   d:'Last day of previous quarter'},
+  {g:'Year',          v:'{{YEAR}}',               d:'Current 4-digit year'},
+  {g:'Year',          v:'{{YEAR_START}}',         d:'1 Jan of current year'},
+  {g:'Year',          v:'{{YEAR_END}}',           d:'31 Dec of current year'},
+  {g:'Prev Year',     v:'{{PREV_YEAR}}',          d:'Previous 4-digit year'},
+  {g:'Prev Year',     v:'{{PREV_YEAR_START}}',    d:'1 Jan of previous year'},
+  {g:'Prev Year',     v:'{{PREV_YEAR_END}}',      d:'31 Dec of previous year'},
+];
+
+const DATE_TOKEN_VALUES = TOKEN_LIST.map(t => t.v);
+
+function addParam(data) {
+  const id = ++pidx;
+  params.push({
+    id, name: data?.name||'', type: data?.type||'string',
+    required: data?.required!==false,
+    sortOrder: params.length+1,
+    values: data?.values||[],
+    valueSource: data?.valueSource||'static',
+    valueQuery:  data?.valueQuery||'',
+    dateMode: 'token',
+    dateToken: (data?.values?.length===1 && data.values[0].startsWith('{{')) ? data.values[0] : '{{TODAY}}',
+    todayDir:'-', todayN:1,
+  });
+  renderParams();
+  sync();
+}
+
+function removeParam(id) {
+  params = params.filter(p => p.id!==id);
+  renderParams();
+  sync();
+}
+
+function getP(id) { return params.find(p=>p.id===id); }
+
+function renderParams() {
+  const area = document.getElementById('params-area');
+  area.innerHTML = '';
+  params.forEach(p => area.appendChild(makeParamCard(p)));
+  if (fanout!=='NONE') populateFanoutParamSelect();
+  updateS3Summary();
+}
+
+function makeParamCard(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'param-card';
+  wrap.id = 'pc-'+p.id;
+
+  const tc = {string:'string',date:'date',int:'int'}[p.type]||'string';
+
+  wrap.innerHTML = `
+    <div class="param-head" onclick="toggleParamCard(${p.id})">
+      <span class="param-name-text">${esc(p.name)||'(unnamed)'}</span>
+      <span class="ptag ${tc}">${p.type}</span>
+      <button class="param-remove" onclick="event.stopPropagation();removeParam(${p.id})">×</button>
+    </div>
+    <div class="param-body" id="pb-${p.id}">
+      <div class="row c3">
+        <div class="field" style="grid-column:1/3">
+          <label>Parameter Name <span class="req">*</span></label>
+          <input value="${esc(p.name)}" placeholder="ParameterName"
+            onchange="getP(${p.id}).name=this.value;document.querySelector('#pc-${p.id} .param-name-text').textContent=this.value||'(unnamed)';sync()"/>
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select onchange="getP(${p.id}).type=this.value;document.querySelector('#pc-${p.id} .param-name-text+.ptag').className='ptag '+this.value;refreshParamVal(${p.id});sync()">
+            <option value="string" ${p.type==='string'?'selected':''}>string</option>
+            <option value="date"   ${p.type==='date'  ?'selected':''}>date</option>
+            <option value="int"    ${p.type==='int'   ?'selected':''}>int</option>
+          </select>
+        </div>
+      </div>
+      <div id="pval-${p.id}">${buildParamValSection(p)}</div>
+      <div class="row c2">
+        <div class="field">
+          <label>Required</label>
+          <select onchange="getP(${p.id}).required=this.value==='true';sync()">
+            <option value="true"  ${p.required ?'selected':''}>Required</option>
+            <option value="false" ${!p.required?'selected':''}>Optional</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sort Order</label>
+          <input type="number" value="${p.sortOrder}" min="1"
+            onchange="getP(${p.id}).sortOrder=parseInt(this.value)||1;sync()"/>
+        </div>
+      </div>
+    </div>`;
+  return wrap;
+}
+
+function toggleParamCard(id) {
+  document.getElementById('pb-'+id).classList.toggle('open');
+}
+
+function refreshParamVal(id) {
+  document.getElementById('pval-'+id).innerHTML = buildParamValSection(getP(id));
+  document.getElementById('pb-'+id).classList.add('open');
+}
+
+function buildParamValSection(p) {
+  if (!p.valueSource) p.valueSource = 'static';  // guard against uninitialised state
+  const isDynamic = p.valueSource === 'dynamic';
+  const sourceToggle = `
+    <div class="field">
+      <label>Value Source</label>
+      <div class="vsource-tabs">
+        <button class="vstab ${!isDynamic?'on':''}"
+          onclick="setValueSource(${p.id},'static',this)">Static</button>
+        <button class="vstab dynamic ${isDynamic?'on':''}"
+          onclick="setValueSource(${p.id},'dynamic',this)">Dynamic Query</button>
+      </div>
+    </div>`;
+
+  if (isDynamic) {
+    return sourceToggle + `
+      <div class="dyn-query-wrap">
+        <div class="dyn-query-hint">
+          Write a SQL <code>SELECT</code> that returns a single column named <code>[Value]</code>.<br>
+          Results are fetched at dispatch time and used as the parameter values.<br>
+          Example: <code>SELECT sBRMCode AS [Value] FROM dbo.BRM WHERE bActive = 1</code>
+        </div>
+        <div class="field">
+          <label>SQL Query <span class="req">*</span></label>
+          <textarea rows="4" style="font-family:var(--mono);font-size:11px"
+            placeholder="SELECT sBRMCode AS [Value]&#10;FROM   dbo.BrokerRelationshipManager&#10;WHERE  bActive = 1&#10;ORDER  BY sBRMCode"
+            oninput="getP(${p.id}).valueQuery=this.value;sync()">${esc(p.valueQuery||'')}</textarea>
+        </div>
+        <div class="field">
+          <label>Fallback Value <span class="hint">used if query fails — can be DYNAMIC</span></label>
+          <input value="${esc(p.values[0]||'DYNAMIC')}" placeholder="DYNAMIC"
+            onchange="getP(${p.id}).values=[this.value];sync()"/>
+        </div>
+      </div>`;
+  }
+
+  if (p.type==='date') return sourceToggle + buildDateSection(p);
+
+  const tags = p.values.map(v =>
+    `<span class="ptv">${esc(v)}<button onclick="removeVal(${p.id},'${esc(v)}')">×</button></span>`
+  ).join('');
+  return sourceToggle + `
+    <div class="field">
+      <label>Values <span class="hint">add multiple for fan-out</span></label>
+      <div class="pipe-wrap" id="pv-${p.id}">${tags}</div>
+      <div class="pipe-add">
+        <input id="pi-${p.id}" placeholder="Add value…" onkeydown="if(event.key==='Enter'){event.preventDefault();addVal(${p.id})}"/>
+        <button onclick="addVal(${p.id})">+</button>
+      </div>
+    </div>`;
+}
+
+function setValueSource(id, src, btn) {
+  const p = getP(id);
+  p.valueSource = src;
+  if (src === 'dynamic' && !p.values.length) p.values = ['DYNAMIC'];
+  // Update dynamic tag on param header
+  const head = document.querySelector('#pc-'+id+' .param-name-text');
+  const dynTag = document.querySelector('#pc-'+id+' .ptag.dynamic');
+  if (src === 'dynamic' && !dynTag) {
+    head.insertAdjacentHTML('afterend', '<span class="ptag dynamic">dynamic</span>');
+  } else if (src === 'static' && dynTag) {
+    dynTag.remove();
+  }
+  const pvalEl = document.getElementById('pval-'+id);
+  pvalEl.innerHTML = buildParamValSection(p);
+  // Keep the card body open after rebuild
+  document.getElementById('pb-'+id).classList.add('open');
+  sync();
+}
+
+function buildDateSection(p) {
+  // Build token options grouped
+  let groups={};
+  TOKEN_LIST.forEach(t=>{if(!groups[t.g])groups[t.g]=[];groups[t.g].push(t);});
+  let opts='';
+  Object.entries(groups).forEach(([g,toks])=>{
+    opts+=`<optgroup label="${g}">`;
+    toks.forEach(t=>{ const lbl=t.v==='TODAY-N'?'{{TODAY-N}} — N days before today':t.v==='TODAY+N'?'{{TODAY+N}} — N days after today':t.v; opts+=`<option value="${t.v}" ${p.dateToken===t.v?'selected':''}>${lbl}</option>`; });
+    opts+='</optgroup>';
+  });
+  const isToken = p.dateMode!=='literal';
+  const showN = p.dateToken==='TODAY-N'||p.dateToken==='TODAY+N';
+  return `
+    <div class="field">
+      <label>Value</label>
+      <div class="date-tabs">
+        <button class="dtab ${isToken?'on':''}" onclick="setDateMode(${p.id},'token',this)">Date Token</button>
+        <button class="dtab ${!isToken?'on':''}" onclick="setDateMode(${p.id},'literal',this)">Literal Date</button>
+      </div>
+      <div id="dt-tok-${p.id}" style="${isToken?'':'display:none'}">
+        <select onchange="getP(${p.id}).dateToken=this.value;onDateTokChange(${p.id},this.value);sync()">${opts}</select>
+        <div id="dt-n-${p.id}" style="margin-top:8px;${showN?'':'display:none'}">
+          <div class="row c2">
+            <div class="field">
+              <label>Direction</label>
+              <select onchange="getP(${p.id}).todayDir=this.value;updateTodayNPreview(${p.id});sync()">
+                <option value="-" ${p.todayDir==='-'?'selected':''}>− Before today</option>
+                <option value="+" ${p.todayDir==='+'?'selected':''}>+ After today</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Days</label>
+              <input type="number" value="${p.todayN}" min="1"
+                onchange="getP(${p.id}).todayN=parseInt(this.value)||1;updateTodayNPreview(${p.id});sync()"/>
+            </div>
+          </div>
+          <div id="dt-n-preview-${p.id}" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--accent);padding:5px 8px;background:var(--s2);border:1px solid var(--border);border-radius:5px;">
+            {{TODAY${p.todayDir}${p.todayN}}}
+          </div>
+        </div>
+      </div>
+      <div id="dt-lit-${p.id}" style="${!isToken?'':'display:none'}">
+        <input type="date" value="${p.values[0]||''}" onchange="getP(${p.id}).values=[this.value];sync()"/>
+      </div>
+    </div>`;
+}
+
+function setDateMode(id, mode, btn) {
+  const p = getP(id);
+  p.dateMode = mode;
+  btn.closest('.date-tabs').querySelectorAll('.dtab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('dt-tok-'+id).style.display = mode==='token' ? '' : 'none';
+  document.getElementById('dt-lit-'+id).style.display = mode==='literal' ? '' : 'none';
+  sync();
+}
+
+function onDateTokChange(id, val) {
+  const isN = val==='TODAY-N'||val==='TODAY+N';
+  document.getElementById('dt-n-'+id).style.display = isN ? '' : 'none';
+  sync();
+}
+
+function addVal(id) {
+  const inp = document.getElementById('pi-'+id);
+  const v = inp.value.trim();
+  if (!v) return;
+  const p = getP(id);
+  if (!p.values.includes(v)) {
+    p.values.push(v);
+    const tag = document.createElement('span');
+    tag.className = 'ptv';
+    tag.innerHTML = `${esc(v)}<button onclick="removeVal(${id},'${esc(v)}')">×</button>`;
+    document.getElementById('pv-'+id).appendChild(tag);
+  }
+  inp.value='';
+  if (fanout!=='NONE') populateFanoutParamSelect();
+  sync();
+}
+
+function removeVal(id, v) {
+  const p = getP(id);
+  p.values = p.values.filter(x=>x!==v);
+  const pvalEl = document.getElementById('pval-'+id);
+  pvalEl.innerHTML = buildParamValSection(p);
+  // Keep the card body open after rebuild
+  document.getElementById('pb-'+id).classList.add('open');
+  sync();
+}
+
+// ════════════════════════════════════════════════════════════
+//  RECIPIENTS
+// ════════════════════════════════════════════════════════════
+function addRecipient() {
+  const list = document.getElementById('rcp-list');
+  const row = document.createElement('div');
+  row.className = 'rcp-row';
+  row.innerHTML = `
+    <input placeholder="Display Name" oninput="sync()"/>
+    <input type="email" placeholder="email@example.com" oninput="sync()"/>
+    <select onchange="sync()">
+      <option value="TO">TO</option>
+      <option value="CC">CC</option>
+      <option value="BCC">BCC</option>
+    </select>
+    <button onclick="this.parentElement.remove();sync()" title="Remove">×</button>`;
+  list.appendChild(row);
+}
+
+function getRecipients() {
+  return [...document.querySelectorAll('#rcp-list .rcp-row')].map(r=>{
+    const ins = r.querySelectorAll('input');
+    return { name:ins[0].value.trim(), email:ins[1].value.trim(), role:r.querySelector('select').value };
+  }).filter(r=>r.email);
+}
+
+// ════════════════════════════════════════════════════════════
+//  JSON IMPORT
+// ════════════════════════════════════════════════════════════
+function parseJson() {
+  const raw = document.getElementById('importJson').value.trim();
+  const msg = document.getElementById('import-msg');
+  if (!raw) return;
+  try {
+    const obj = JSON.parse(raw);
+    const dn = document.getElementById('docName');
+    if (obj.documentId && !dn.value) dn.value = obj.documentId;
+    if (obj.outputFormat) document.getElementById('outputFormat').value = obj.outputFormat;
+    if (obj.language) document.getElementById('language').value = obj.language;
+    if (obj.confidentiality) document.getElementById('confidentiality').value = obj.confidentiality;
+    if (Array.isArray(obj.parameters) && obj.parameters.length) {
+      params = [];
+      obj.parameters.forEach((p,i) => {
+        const vals = Array.isArray(p.values) ? p.values : [];
+        const isDate = p.type==='date';
+        const hasDynQuery = p.valueQuery && p.valueQuery.trim();
+        addParam({
+          name: p.name, type: p.type||'string', required: p.required!==false,
+          values: vals,
+          valueSource: hasDynQuery ? 'dynamic' : 'static',
+          valueQuery: p.valueQuery||'',
+        });
+        if (isDate && vals.length===1 && vals[0].startsWith('{{')) {
+          const pp = params[params.length-1];
+          pp.dateMode='token'; pp.dateToken=vals[0];
+        }
+      });
+      msg.style.color='var(--green)';
+      msg.textContent = `✓ Imported ${params.length} parameter${params.length!==1?'s':''}.`;
+    } else {
+      msg.style.color='var(--green)';
+      msg.textContent = '✓ Parsed — no parameters found.';
+      sync();
+    }
+  } catch(e) {
+    msg.style.color='var(--red)';
+    msg.textContent = '✗ Invalid JSON: ' + e.message;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  RESOLVE PARAM VALUE
+// ════════════════════════════════════════════════════════════
+function resolveParamValue(p) {
+  if (p.type==='date') {
+    if (p.dateMode==='literal') return p.values[0]||'';
+    let t = p.dateToken||'{{TODAY}}';
+    if (t==='TODAY-N') t=`{{TODAY${p.todayDir}${p.todayN}}}`;
+    if (t==='TODAY+N') t=`{{TODAY${p.todayDir}${p.todayN}}}`;
+    return t;
+  }
+  return p.values.join('|');
+}
+
+// ════════════════════════════════════════════════════════════
+//  SUMMARIES
+// ════════════════════════════════════════════════════════════
+function updateS3Summary() {
+  const el = document.getElementById('s3-sum');
+  if (!el) return;
+  el.textContent = params.length===0
+    ? 'No parameters — report runs with empty parameters'
+    : `${params.length} parameter${params.length!==1?'s':''} defined`;
+  if (params.length>0) document.getElementById('s3').classList.add('complete');
+}
+
+// ════════════════════════════════════════════════════════════
+//  SQL GENERATION
+// ════════════════════════════════════════════════════════════
+function q(s) { return s===null||s===undefined ? 'NULL' : "'"+String(s).replace(/'/g,"''")+"'"; }
+function qn(s) { return (!s&&s!==0) ? 'NULL' : q(s); }
+
+function syncCore() {
+  // Show/hide {{DISPLAYNAME}} token badge based on whether fan-out is active
+  const dnBadge = document.getElementById('ph-displayname');
+  if (dnBadge) {
+    const isActive = fanout !== 'NONE';
+    dnBadge.style.opacity = isActive ? '1' : '0.35';
+    dnBadge.style.pointerEvents = isActive ? 'auto' : 'none';
+    dnBadge.title = isActive
+      ? 'Entity label resolved per fan-out row'
+      : '{{DISPLAYNAME}} is only available when fan-out is active in Step 5';
+  }
+  updateS3Summary();
+  const docName      = (document.getElementById('docName').value||'').trim();
+  const outFmt       = document.getElementById('outputFormat').value;
+  const language     = document.getElementById('language').value||1;
+  const conf         = document.getElementById('confidentiality').value;
+  const schedName    = (document.getElementById('schedName').value||'').trim();
+  const freq         = document.getElementById('freq').value;
+  const runTime      = document.getElementById('runTime').value;
+  const dow          = document.getElementById('dow').value;
+  const dom          = document.getElementById('dom').value;
+  const intMin       = document.getElementById('intervalMin').value;
+  const winStart     = document.getElementById('winStart').value;
+  const winEnd       = document.getElementById('winEnd').value;
+  const startDate    = document.getElementById('startDate').value;
+  const endDate      = document.getElementById('endDate').value;
+  const subject      = (document.getElementById('subject').value||'').trim();
+  const body         = (document.getElementById('body').value||'').trim();
+  const dlvEmailSrc  = document.getElementById('dlv-esrc')?.value || 'STATIC';
+  const dlvEmailVal  = (document.getElementById('dlv-eval-inp')?.value||'').trim();
+  const staticFilename = (document.getElementById('staticFilename')?.value||'').trim();
+  const bulkFSrc     = document.getElementById('bulk-fsrc')?.value || 'STATIC';
+  const bulkFVal     = (document.getElementById('bulk-fval-inp')?.value||'').trim();
+  const bulkFNSrc    = document.getElementById('bulk-fnsrc')?.value || '';
+  const bulkFNVal    = (document.getElementById('bulk-fnval-inp')?.value||'').trim();
+  // Keep staticFolder as alias for STATIC folder value
+  const staticFolder = bulkFSrc === 'STATIC' ? bulkFVal : '';
+
+  // Fan-out state
+  const foParam   = document.getElementById('fo-param').value;
+  const foESrc    = document.getElementById('fo-esrc').value;
+  const foEVal    = document.getElementById('fo-eval-inp').value.trim();
+  const foBulkE   = document.getElementById('fo-bulk-email').value.trim();
+  const foFSrc    = document.getElementById('fo-fsrc').value;
+  const foFVal    = document.getElementById('fo-fval-inp').value.trim();
+  const foBulkF   = document.getElementById('fo-bulk-folder').value.trim();
+  const foDNSrc   = document.getElementById('fo-dnsrc').value;
+  const foDNVal   = document.getElementById('fo-dnval-inp').value.trim();
+  const foFNTmpl  = (document.getElementById('fo-fntemplate').value||'').trim();
+  const ext       = '.'+outFmt;
+
+  // Build parametersJson
+  let pObjs = [];
+  const foParamId = parseInt(foParam)||0;
+
+  params.forEach(p => {
+    const val = resolveParamValue(p);
+    const obj = {
+      name: p.name, type: p.type, required: p.required,
+      sortOrder: p.sortOrder,
+      value: p.valueSource==='dynamic' ? (p.values[0]||'DYNAMIC') : val,
+    };
+    if (p.valueSource==='dynamic' && p.valueQuery && p.valueQuery.trim()) {
+      obj.valueQuery = p.valueQuery.trim();
+    }
+
+    const isPrimaryFanout = fanout!=='NONE' && p.id===foParamId;
+
+    if (isPrimaryFanout) {
+      // ── Fan-out dispatch — per-entity resolution ──────────────
+      const dMode = fanout==='BOTH' ? 'BOTH' : 'INDIVIDUAL';
+      const disp = {
+        isPrimary: true,
+        mode: dMode,
+        deliveryMethod: delivery,
+      };
+      if (['EMAIL','BOTH'].includes(delivery)) {
+        disp.emailSource = foESrc;
+        disp.emailSourceValue = foEVal;
+        const bulkE = foBulkE || dlvEmailVal;
+        if (bulkE) disp.bulkEmail = bulkE;
+      }
+      if (['FOLDER','BOTH'].includes(delivery)) {
+        if (foFSrc) { disp.folderSource = foFSrc; disp.folderSourceValue = foFVal; }
+        if (foBulkF) disp.bulkFolderPath = foBulkF;
+      }
+      if (foDNSrc) { disp.displayNameSource = foDNSrc; disp.displayNameSourceValue = foDNVal; }
+      if (foFNTmpl) { let fn = foFNTmpl.replace(/\.(xlsx|pdf|csv|xls|docx)$/i,''); disp.fileNameTemplate = fn+ext; }
+      obj.fanOut = disp;
+
+    }
+
+    firstParam = false;
+    pObjs.push(obj);
+  });
+
+  // Build SQL lines
+  const L = [];
+  L.push('EXEC [schdl].[usp_RegisterSchedule]');
+  L.push(`    @DocumentName    = ${q(docName)},`);
+  L.push(`    @ReportEndpoint  = '/api/reports/generate',`);
+  if (outFmt!=='xlsx') L.push(`    @OutputFormat    = ${q(outFmt)},`);
+  if (parseInt(language)!==1) L.push(`    @Language        = ${language},`);
+  if (conf!=='normal') L.push(`    @Confidentiality = ${q(conf)},`);
+  L.push(`    @ScheduleName    = ${q(schedName)},`);
+  L.push(`    @FrequencyType   = '${freq}',`);
+  if (['DAILY','WEEKLY','MONTHLY'].includes(freq) && runTime) L.push(`    @RunTime         = '${runTime}',`);
+  if (freq==='WEEKLY')   L.push(`    @DayOfWeek       = ${dow},`);
+  if (freq==='MONTHLY')  L.push(`    @DayOfMonth      = ${dom||1},`);
+  if (freq==='INTERVAL') {
+    L.push(`    @IntervalMinutes = ${intMin||60},`);
+    if (winStart) L.push(`    @WindowStart     = '${winStart}',`);
+    if (winEnd)   L.push(`    @WindowEnd       = '${winEnd}',`);
+  }
+  if (startDate) L.push(`    @StartDate       = '${startDate}',`);
+  if (endDate)   L.push(`    @EndDate         = '${endDate}',`);
+  if (subject)   L.push(`    @Subject         = ${q(subject)},`);
+  if (body)      L.push(`    @BodyTemplate    = ${q(body)},`);
+
+  // No-fanout dispatch config now handled directly in param loop above
+
+  // Build @DispatchJson — schedule-level delivery config
+  const dispatchObj = {};
+  dispatchObj.deliveryMethod = delivery;
+  if (['EMAIL','BOTH'].includes(delivery) && dlvEmailVal) {
+    dispatchObj.emailSource = dlvEmailSrc;
+    dispatchObj.emailSourceValue = dlvEmailVal;
+  }
+  if (['FOLDER','BOTH'].includes(delivery) && bulkFVal) {
+    dispatchObj.folderSource = bulkFSrc;
+    dispatchObj.folderSourceValue = bulkFVal;
+  }
+  if (staticFilename) {
+    let fn = staticFilename.replace(/\.(xlsx|pdf|csv|xls|docx)$/i,'');
+    dispatchObj.fileNameTemplate = fn + ext;
+  } else if (bulkFNSrc && bulkFNVal) {
+    dispatchObj.fileNameSource = bulkFNSrc;
+    dispatchObj.fileNameSourceValue = bulkFNVal;
+  }
+  const dj = JSON.stringify(dispatchObj, null, 4).replace(/'/g,"''");
+  L.push(`    @DispatchJson    = N'${dj}',`);
+
+  if (pObjs.length>0) {
+    const j = JSON.stringify(pObjs, null, 4).replace(/'/g,"''");
+    L.push(`    @ParametersJson  = N'${j}',`);
+  } else {
+    L.push(`    @ParametersJson  = NULL,`);
+  }
+
+  // Recipients
+  const rcps = getRecipients();
+  // Add the combined TO email from Step 4 if provided (STATIC only — others resolve at runtime)
+  let allRcps = [...rcps];
+  if (dlvEmailVal && dlvEmailSrc === 'STATIC' && ['EMAIL','BOTH'].includes(delivery)) {
+    // Only add as static recipient if not already in the list
+    if (!allRcps.some(r => r.email === dlvEmailVal && r.role === 'TO')) {
+      allRcps.unshift({ name:'', email: dlvEmailVal, role:'TO' });
+    }
+  }
+  if (allRcps.length>0) {
+    const rj = JSON.stringify(allRcps.map(r=>({name:r.name,email:r.email,role:r.role})),null,4).replace(/'/g,"''");
+    L.push(`    @RecipientsJson  = N'${rj}';`);
+  } else {
+    L.push(`    @RecipientsJson  = NULL;`);
+  }
+
+  const sql = L.join('\n').replace(/,\s*;/,';');
+  document.getElementById('sql-out').innerHTML = highlight(sql);
+
+  // Step summaries
+  const s1s = document.getElementById('s1-sum');
+  if (s1s) s1s.textContent = docName ? `${docName} — ${outFmt}` : 'Which report should be generated?';
+  const s2s = document.getElementById('s2-sum');
+  if (s2s) {
+    const fmap = {DAILY:'Daily',WEEKLY:'Weekly',MONTHLY:'Monthly',ADHOC:'Ad-hoc',INTERVAL:'Interval'};
+    s2s.textContent = schedName ? `${schedName} — ${fmap[freq]||freq}` : 'When should this run?';
+  }
+  // ── Validation ──────────────────────────────────────────
+  // Step 4: Email without fan-out must have at least one TO recipient
+  const rcpVal = document.getElementById('rcp-validation');
+  if (rcpVal) {
+    const emailVal = (document.getElementById('dlv-eval-inp')?.value||'').trim();
+    const needsEmail = ['EMAIL','BOTH'].includes(delivery);
+    if (needsEmail && !emailVal) {
+      rcpVal.style.display = '';
+      rcpVal.innerHTML = '<div class="val-error">A combined recipient email address is required — fill in the Email Recipient field above.</div>';
+    } else if (needsEmail && emailVal) {
+      rcpVal.style.display = '';
+      rcpVal.innerHTML = '<div class="val-ok">Combined email recipient configured.</div>';
+    } else {
+      rcpVal.style.display = 'none';
+    }
+  }
+
+  // Step 5: fan-out email source value must be filled when not NONE
+  const foEvalVal = document.getElementById('fo-eval-validation');
+  if (foEvalVal) {
+    const eSrc = document.getElementById('fo-esrc')?.value;
+    const eVal = (document.getElementById('fo-eval-inp')?.value||'').trim();
+    const needsEVal = fanout !== 'NONE' && ['EMAIL','BOTH'].includes(delivery);
+    if (needsEVal && eSrc && !eVal) {
+      foEvalVal.style.display = '';
+      foEvalVal.innerHTML = '<div class="val-error">Email source value is required — enter an address, view name, function, or SQL.</div>';
+    } else {
+      foEvalVal.style.display = 'none';
+    }
+  }
+
+  // Step 4: Folder delivery must have a folder path value
+  const bulkFValEl = document.getElementById('bulk-fval-validation');
+  if (bulkFValEl) {
+    const fSrc = document.getElementById('bulk-fsrc')?.value;
+    const fVal = (document.getElementById('bulk-fval-inp')?.value||'').trim();
+    const needsF = ['FOLDER','BOTH'].includes(delivery);
+    if (needsF && !fVal) {
+      bulkFValEl.style.display = '';
+      bulkFValEl.innerHTML = '<div class="val-error">Folder path is required for Folder Drop delivery.</div>';
+    } else if (needsF && fVal) {
+      bulkFValEl.style.display = '';
+      bulkFValEl.innerHTML = '<div class="val-ok">Folder path configured.</div>';
+    } else {
+      bulkFValEl.style.display = 'none';
+    }
+  }
+
+  const s4s = document.getElementById('s4-sum');
+  if (s4s) s4s.textContent = delivery==='EMAIL' ? 'Email' : delivery==='FOLDER' ? 'Folder Drop' : 'Email + Folder Drop';
+  const s5s = document.getElementById('s5-sum');
+  if (s5s) s5s.textContent = fanout==='NONE' ? 'No fan-out — combined report' :
+    fanout==='INDIVIDUAL' ? 'Individual per value' : 'Individual + Combined';
+}
+
+function highlight(sql) {
+  return sql.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\b(EXEC|NULL|GO)\b/g,'<span class="kw">$1</span>')
+    .replace(/(\[sched\]\.\[[^\]]+\])/g,'<span class="fn">$1</span>')
+    .replace(/@\w+/g,'<span class="va">$&</span>')
+    .replace(/(= N?'[^']*')/g,'<span class="str">$1</span>')
+    .replace(/(--[^\n]*)/g,'<span class="cm">$1</span>');
+}
+
+function getRawSQL() { return document.getElementById('sql-out').innerText; }
+function copySQL() {
+  navigator.clipboard.writeText(getRawSQL()).then(()=>{
+    const t=document.getElementById('toast');
+    t.textContent='SQL copied ✓';t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),2000);
+  });
+}
+function downloadSQL() {
+  const n=(document.getElementById('schedName').value||'schedule').replace(/[^a-z0-9_\-]/gi,'_');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([getRawSQL()],{type:'text/plain'}));
+  a.download=n+'.sql';a.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TOKEN SIDEBAR
+// ════════════════════════════════════════════════════════════
+function renderToks(filter) {
+  const list = document.getElementById('tok-list');
+  list.innerHTML='';
+  const q2=(filter||'').toLowerCase();
+  let lastG=null;
+  TOKEN_LIST.forEach(t=>{
+    if (q2&&!t.v.toLowerCase().includes(q2)&&!t.d.toLowerCase().includes(q2)&&!t.g.toLowerCase().includes(q2)) return;
+    if (t.g!==lastG) {
+      const g=document.createElement('div');g.className='tok-group';g.textContent=t.g;
+      list.appendChild(g);lastG=t.g;
+    }
+    const row=document.createElement('div');row.className='tok-row';row.title='Click to copy';
+    row.onclick=()=>copyTok(t.v,row);
+    row.innerHTML=`<div><div class="tok-tok">${t.v}</div><div class="tok-desc">${t.d}</div></div>
+      <button class="tok-copy" onclick="event.stopPropagation();copyTok('${t.v}',this)">Copy</button>`;
+    list.appendChild(row);
+  });
+  if (!list.children.length) list.innerHTML='<div style="color:var(--muted);font-size:11px;padding:10px 4px">No matches.</div>';
+}
+function filterToks(v){renderToks(v)}
+function refreshOffset(){
+  const dir=document.getElementById('to-dir').value;
+  const n=parseInt(document.getElementById('to-n').value)||1;
+  const tok='{{TODAY'+dir+n+'}}';
+  document.getElementById('to-prev').textContent=tok;
+  document.getElementById('to-desc').textContent=n+' day'+(n!==1?'s':'')+' '+(dir==='-'?'before':'after')+' execution date';
+}
+function copyTok(tok,el){
+  navigator.clipboard.writeText(tok).catch(()=>{});
+  const item=el.closest?.('.tok-row')||el.closest?.('.ph-badge')||el;
+  if(item){item.style.background='#1a2e1a';setTimeout(()=>item.style.background='',700);}
+  const t=document.getElementById('toast');
+  t.textContent='Copied '+tok+' ✓';t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+function useAsIs(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const ph = el.placeholder;
+  if (!ph) return;
+  el.value = ph;
+  el.focus();
+  // Fire input/change event so sync picks it up
+  el.dispatchEvent(new Event('input', {bubbles:true}));
+  el.dispatchEvent(new Event('change', {bubbles:true}));
+  sync();
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// ════════════════════════════════════════════════════════════
+//  OBJECT BUILDER
+// ════════════════════════════════════════════════════════════
+
+// What the engine expects per resolver type, per target column
+const OBJ_CONTRACTS = {
+  email: {
+    view: { cols:[
+      {name:'LookupKey',    desc:'Matches the fan-out parameter value (e.g. BRM001)', required:true},
+      {name:'EmailAddress', desc:'Email address to send to for this value',           required:true},
+    ]},
+    fn:   { ret:'NVARCHAR(320)', retDesc:'Email address', param:'@Value NVARCHAR(500)' },
+  },
+  folder: {
+    view: { cols:[
+      {name:'LookupKey',  desc:'Matches the fan-out parameter value',              required:true},
+      {name:'FolderPath', desc:'Destination folder path for this value',           required:true},
+    ]},
+    fn:   { ret:'NVARCHAR(1000)', retDesc:'Folder path', param:'@Value NVARCHAR(500)' },
+  },
+  displayname: {
+    view: { cols:[
+      {name:'LookupKey',   desc:'Matches the fan-out parameter value',            required:true},
+      {name:'DisplayName', desc:'Human-readable label (used in {{DISPLAYNAME}})',   required:true},
+    ]},
+    fn:   { ret:'NVARCHAR(500)', retDesc:'Display name / entity label', param:'@Value NVARCHAR(500)' },
+  },
+};
+
+// Which source selector last triggered the object builder
+let objContext = null; // {type:'view'|'fn', target:'email'|'folder'|'displayname', nameInputId, srcSelId}
+let objTab = 'view';
+
+// Called by source selectors when LOOKUP_VIEW or SCALAR_FN is chosen
+function triggerObjectBuilder(target, srcType, nameInputId) {
+  if (srcType !== 'LOOKUP_VIEW' && srcType !== 'SCALAR_FN') {
+    // Non-object source — hide panel
+    document.getElementById('obj-empty').style.display = '';
+    document.getElementById('obj-content').style.display = 'none';
+    document.getElementById('obj-context').textContent = '— select a source type in Step 5';
+    objContext = null;
+    return;
+  }
+
+  objContext = { target, srcType, nameInputId };
+  document.getElementById('obj-empty').style.display = 'none';
+  document.getElementById('obj-content').style.display = 'flex';
+
+  const tab = srcType === 'LOOKUP_VIEW' ? 'view' : 'fn';
+  setObjTab(tab);
+  updateObjContract(target, tab);
+
+  // Pre-populate the object name from whatever is typed in the Step 5 source value field
+  if (nameInputId) {
+    const stepVal = (document.getElementById(nameInputId)?.value||'').trim();
+    if (stepVal) {
+      const nameField = document.getElementById(tab==='view' ? 'obj-view-name' : 'obj-fn-name');
+      if (nameField && !nameField.value) nameField.value = stepVal;
+    }
+  }
+
+  prefillObjTemplate(target, tab);
+
+  const targetLabels = {email:'Email',folder:'Folder Path',displayname:'Entity Label'};
+  document.getElementById('obj-context').textContent =
+    '— ' + targetLabels[target] + ' (' + (tab==='view' ? 'Lookup View' : 'Scalar Function') + ')';
+  // Update included count badge
+  updateObjCount();
+}
+
+function setObjTab(tab) {
+  // Save current tab's content before switching
+  saveCurrentObj();
+  objTab = tab;
+  ['view','fn','dynhelp'].forEach(t => {
+    document.getElementById('otab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('otab-'+t+'-body').classList.toggle('active', t===tab);
+  });
+  if (objContext && tab!=='dynhelp') {
+    updateObjContract(objContext.target, tab);
+    // Restore previously saved content for this tab+target, or prefill template
+    restoreObj(objContext.target, tab);
+    prefillObjTemplate(objContext.target, tab);
+  }
+  if (tab==='dynhelp') renderDynExamples();
+  sync();
+}
+
+function updateObjContract(target, tab) {
+  const contract = OBJ_CONTRACTS[target];
+  if (!contract) return;
+  if (tab==='view') {
+    const el = document.getElementById('view-contract-cols');
+    el.innerHTML = contract.view.cols.map(c =>
+      '<div class="obj-col-row"><span class="obj-col-name">'+c.name+'</span><span class="obj-col-desc">'+c.desc+(c.required?' <em style="color:var(--red)">required</em>':'')+'</span></div>'
+    ).join('');
+  } else if (tab==='fn') {
+    const el = document.getElementById('fn-contract-sig');
+    const c = contract.fn;
+    el.innerHTML =
+      '<div class="obj-col-row"><span class="obj-col-name">Parameter</span><span class="obj-col-desc">'+c.param+'</span></div>' +
+      '<div class="obj-col-row"><span class="obj-col-name">Returns</span><span class="obj-col-desc">'+c.ret+' — '+c.retDesc+'</span></div>';
+  }
+}
+
+function prefillObjTemplate(target, tab) {
+  const schemaName = 'schdl';
+  const fnSchema   = 'dbo';
+  const targetNames = {email:'BRMEmail',folder:'BRMFolderPath',displayname:'BRMDisplayName'};
+  const tname = targetNames[target]||'Entity';
+
+  const colMap = {
+    email:       {col:'EmailAddress',  src:'sEmailAddress',  tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
+    folder:      {col:'FolderPath',    src:'sReportFolder',  tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
+    displayname: {col:'DisplayName',   src:'sFullName',      tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
+  };
+  const cm = colMap[target]||colMap.email;
+
+  if (tab==='view') {
+    const vname = document.getElementById('obj-view-name').value || schemaName+'.vw_'+tname;
+    const sql =
+`CREATE OR ALTER VIEW ${vname}
+AS
+    SELECT
+        ${cm.key}     AS LookupKey,      -- must match your fan-out parameter values
+        ${cm.src}     AS ${cm.col}
+    FROM ${cm.tbl}
+    WHERE bActive = 1;`;
+    if (!document.getElementById('obj-view-sql').value)
+      document.getElementById('obj-view-sql').value = sql;
+  } else if (tab==='fn') {
+    const fname = document.getElementById('obj-fn-name').value || fnSchema+'.fn_Get'+tname;
+    const retType = OBJ_CONTRACTS[target].fn.ret;
+    const sql =
+`CREATE OR ALTER FUNCTION ${fname}
+(
+    @Value NVARCHAR(500)
+)
+RETURNS ${retType}
+AS
+BEGIN
+    DECLARE @Result ${retType};
+
+    SELECT TOP 1 @Result = ${cm.src}
+    FROM   ${cm.tbl}
+    WHERE  ${cm.key} = @Value
+      AND  bActive   = 1;
+
+    RETURN @Result;
+END;`;
+    if (!document.getElementById('obj-fn-sql').value)
+      document.getElementById('obj-fn-sql').value = sql;
+  }
+}
+
+function onObjNameChange() {
+  // Update the source value input in Step 5 to match what's typed
+  if (!objContext) return;
+  const isView = objTab === 'view';
+  const name = document.getElementById(isView ? 'obj-view-name' : 'obj-fn-name').value.trim();
+  if (objContext.nameInputId) {
+    const inp = document.getElementById(objContext.nameInputId);
+    if (inp) inp.value = name;
+  }
+  // Refresh template to use new name (only if template is still default / empty)
+  sync();
+}
+
+function onObjCodeChange() { saveCurrentObj(); updateObjCount(); sync(); }
+
+function updateObjCount() {
+  saveCurrentObj();
+  const count = Object.values(objStore).filter(o => o.include && o.sql && o.sql.trim()).length;
+  const badge = document.getElementById('obj-count-badge');
+  if (badge) {
+    badge.textContent = count > 0 ? count + ' object' + (count!==1?'s':'') + ' included' : '';
+    badge.style.display = count > 0 ? '' : 'none';
+  }
+}
+
+function copyObjSQL(type) {
+  const sql = document.getElementById('obj-'+type+'-sql').value;
+  navigator.clipboard.writeText(sql).catch(()=>{});
+  const t = document.getElementById('toast');
+  t.textContent='Object SQL copied ✓';t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// Persist object SQL across tab switches so multiple objects can be included
+const objStore = {};  // { 'email:view': {name,sql,include}, 'folder:fn': {...}, ... }
+
+function saveCurrentObj() {
+  if (!objContext) return;
+  const key = objContext.target + ':' + objTab;
+  if (objTab === 'view') {
+    objStore[key] = {
+      name:    document.getElementById('obj-view-name')?.value||'',
+      sql:     document.getElementById('obj-view-sql')?.value||'',
+      include: document.getElementById('obj-view-include')?.checked!==false,
+      tab:     'view', target: objContext.target,
+    };
+  } else if (objTab === 'fn') {
+    objStore[key] = {
+      name:    document.getElementById('obj-fn-name')?.value||'',
+      sql:     document.getElementById('obj-fn-sql')?.value||'',
+      include: document.getElementById('obj-fn-include')?.checked!==false,
+      tab:     'fn', target: objContext.target,
+    };
+  }
+}
+
+function restoreObj(target, tab) {
+  const key = target + ':' + tab;
+  const stored = objStore[key];
+  if (!stored) return;
+  if (tab === 'view') {
+    const n = document.getElementById('obj-view-name');
+    const s = document.getElementById('obj-view-sql');
+    const i = document.getElementById('obj-view-include');
+    if (n && stored.name) n.value = stored.name;
+    if (s && stored.sql)  s.value = stored.sql;
+    if (i) i.checked = stored.include;
+  } else if (tab === 'fn') {
+    const n = document.getElementById('obj-fn-name');
+    const s = document.getElementById('obj-fn-sql');
+    const i = document.getElementById('obj-fn-include');
+    if (n && stored.name) n.value = stored.name;
+    if (s && stored.sql)  s.value = stored.sql;
+    if (i) i.checked = stored.include;
+  }
+}
+
+function getObjSQL() {
+  // Save current state before collecting
+  saveCurrentObj();
+  const parts = [];
+  Object.values(objStore).forEach(o => {
+    if (o.include && o.sql && o.sql.trim()) {
+      parts.push('-- ' + (o.tab==='view'?'View':'Function') + ': ' + (o.name||'unnamed') + '\n' + o.sql.trim() + '\nGO');
+    }
+  });
+  return parts.join('\n\n');
+}
+
+const DYN_EXAMPLES = [
+  {
+    title: 'Email address from a table',
+    desc: 'Resolve an email address directly from your entity table using the parameter value as the key.',
+    sql: "SELECT sEmailAddress AS EmailAddress FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}' AND bActive = 1",
+  },
+  {
+    title: 'Folder path from a table',
+    desc: 'Resolve a folder destination per entity.',
+    sql: "SELECT sReportFolder AS FolderPath FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'",
+  },
+  {
+    title: 'Display name / entity label',
+    desc: 'Resolve a human-readable name to use in filenames and email subjects.',
+    sql: "SELECT sFullName AS DisplayName FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'",
+  },
+  {
+    title: 'Numeric key (cast required)',
+    desc: 'When your parameter value is a number stored as a string, cast it before comparing.',
+    sql: "SELECT sContactEmail AS EmailAddress FROM dbo.Administrator WHERE iAdminID = CAST('{VALUE}' AS INT) AND bEnabled = 1",
+  },
+  {
+    title: 'Join across tables',
+    desc: 'When the email lives in a related table.',
+    sql: "SELECT b.sEmail AS EmailAddress FROM dbo.BrokerBranch bb JOIN dbo.Broker b ON b.iBrokerID = bb.iBrokerID WHERE bb.iBranchCode = '{VALUE}' AND bb.bActive = 1",
+  },
+];
+
+function renderDynExamples() {
+  const el = document.getElementById('dyn-examples');
+  if (!el) return;
+  el.innerHTML = DYN_EXAMPLES.map((ex,i) => `
+    <div class="dyn-example">
+      <div class="dyn-example-title">${ex.title}</div>
+      <div class="dyn-example-desc">${ex.desc}</div>
+      <pre id="dex-${i}">${esc(ex.sql)}</pre>
+      <button class="dyn-example-copy" onclick="copyTok(document.getElementById('dex-${i}').textContent,this)">Copy SQL</button>
+    </div>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+//  FULL onSourceChange — core + object builder trigger
+// ════════════════════════════════════════════════════════════
+// Column name the engine expects per resolver target
+const BULK_SOURCE_COLS = {
+  bulkfolder:   { col:'FolderPath', hint:'Must return a column named [FolderPath] — no {VALUE} needed for combined delivery' },
+  bulkfilename: { col:'FileName',   hint:'Must return a column named [FileName] — no {VALUE} needed for combined delivery' },
+  dlvemail:     { col:'EmailAddress', hint:'Must return a column named [EmailAddress] — no {VALUE} needed for combined delivery' },
+};
+
+const DYN_COL_NAMES = {
+  email:       { col:'EmailAddress',  hint:'Must return a column named [EmailAddress]' },
+  folder:      { col:'FolderPath',    hint:'Must return a column named [FolderPath]' },
+  displayname: { col:'DisplayName',   hint:'Must return a column named [DisplayName]' },
+};
+
+function onSourceChangeFull(selId, valId) {
+  onSourceChangeCore(selId, valId);
+  const src = document.getElementById(selId).value;
+  const targetMap = {
+    'fo-esrc':  { target:'email',       nameInputId:'fo-eval-inp',  hintId:'fo-esrc-hint'  },
+    'fo-fsrc':  { target:'folder',      nameInputId:'fo-fval-inp',  hintId:'fo-fsrc-hint'  },
+    'fo-dnsrc': { target:'displayname', nameInputId:'fo-dnval-inp', hintId:'fo-dnsrc-hint' },
+  };
+  const info = targetMap[selId];
+  if (!info) return;
+
+  // Show/hide context hint
+  const hintEl = document.getElementById(info.hintId);
+  if (hintEl) {
+    if (src === 'DYNAMIC_SQL') {
+      const cn = DYN_COL_NAMES[info.target];
+      hintEl.style.display = '';
+      hintEl.innerHTML =
+        '<strong>Dynamic SQL</strong> — write a <code>SELECT</code> using <code>{VALUE}</code> as the placeholder for the fan-out value.<br>' +
+        '<span style="color:var(--yellow)">' + cn.hint + '</span><br>' +
+        'Example: <code>SELECT ' + cn.col + ' FROM dbo.MyTable WHERE Code = &#39;{VALUE}&#39;</code>';
+    } else {
+      hintEl.style.display = 'none';
+    }
+  }
+
+  triggerObjectBuilder(info.target, src, info.nameInputId);
+}
+
+// ════════════════════════════════════════════════════════════
+//  FULL sync — core generation + prepend object SQL
+// ════════════════════════════════════════════════════════════
+function sync() {
+  syncCore();
+  const objSQL = getObjSQL();
+  if (objSQL) {
+    const out = document.getElementById('sql-out');
+    const current = out.innerHTML;
+    out.innerHTML =
+      '<span class="cm">-- ── Object definitions (toggle off in Object Builder to exclude) ──</span>\n'
+      + highlight(objSQL.replace(/\\n/g,'\n'))
+      + '\n\n<span class="cm">-- ── Schedule registration ───────────────────────────────────────</span>\n'
+      + current;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  TODAY-N PREVIEW
+// ════════════════════════════════════════════════════════════
+function updateTodayNPreview(id) {
+  const p = getP(id);
+  if (!p) return;
+  const el = document.getElementById('dt-n-preview-' + id);
+  if (el) el.textContent = '{{TODAY' + p.todayDir + p.todayN + '}}';
+}
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+onFreq();
+renderToks();
+renderDynExamples();
+sync();
+</script>
+</body>
+</html>
