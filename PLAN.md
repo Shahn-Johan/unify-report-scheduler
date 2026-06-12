@@ -12,21 +12,89 @@ a fully built `RequestJson` ready to POST to the report API.
 ## Repository structure
 
 ```
-scheduling-agent/
-├── PLAN.md                              ← this file
-├── README.md                            ← setup + quick-start
+unify-report-scheduler/
+├── CLAUDE.md                              ← architecture + key invariants (auto-loaded by Claude Code)
+├── PLAN.md                                ← this file
+├── README.md                              ← quick-start
 ├── sql/
 │   ├── deploy/
-│   │   └── scheduling_agent_v3.sql      ← full drop-and-create deploy script
+│   │   └── scheduling_agent_v3.sql        ← full drop-and-create deploy script
 │   ├── samples/
-│   │   └── scheduling_agent_samples.sql ← sample registrations + lookup objects
+│   │   └── scheduling_agent_samples.sql   ← sample registrations
 │   └── tests/
-│       └── scheduling_agent_test_suite.sql ← 24 test schedules, all combinations
+│       └── scheduling_agent_test_suite.sql ← test schedules
 ├── docs/
-│   └── configuration_guide.md           ← step-by-step configuration reference
+│   ├── flowgear_integration.md            ← Flowgear node sequence + dispatch behaviour
+│   └── configuration_guide.md            ← ⚠ STALE — references old LOOKUP_VIEW/SCALAR_FN architecture
 └── tools/
-    └── schedule_builder.html            ← standalone HTML schedule builder tool
+    └── schedule_builder.html             ← standalone HTML builder tool
 ```
+
+---
+
+## Architecture (current — v3)
+
+### Two-block dispatch design
+
+`@DispatchJson` — schedule-level delivery config (separate proc parameter):
+```json
+{
+  "deliveryMethod":     "EMAIL | FOLDER | BOTH",
+  "emailSource":        "STATIC | DYNAMIC_SQL",
+  "emailSourceValue":   "address or SELECT statement",
+  "subjectSource":      "STATIC | DYNAMIC_SQL",
+  "subjectSourceValue": "subject text or SELECT",
+  "bodySource":         "STATIC | DYNAMIC_SQL",
+  "bodySourceValue":    "body text or SELECT",
+  "fileNameSource":     "STATIC | DYNAMIC_SQL",
+  "fileNameSourceValue":"filename or SELECT",
+  "folderSource":       "STATIC | DYNAMIC_SQL",
+  "folderSourceValue":  "path or SELECT"
+}
+```
+
+`fanOut` block — parameter-level fan-out config (nested inside `@ParametersJson`):
+```json
+{
+  "isPrimary":              true,
+  "mode":                   "INDIVIDUAL | BOTH",
+  "emailSource":            "STATIC | DYNAMIC_SQL",
+  "emailSourceValue":       "per-entity email or SELECT with {VALUE}",
+  "displayNameSource":      "STATIC | DYNAMIC_SQL",
+  "displayNameSourceValue": "entity label or SELECT with {VALUE}",
+  "fileNameSource":         "STATIC | DYNAMIC_SQL",
+  "fileNameSourceValue":    "per-entity filename or SELECT with {VALUE}",
+  "folderSource":           "STATIC | DYNAMIC_SQL",
+  "folderSourceValue":      "per-entity folder or SELECT with {VALUE}",
+  "subjectSource":          "STATIC | DYNAMIC_SQL",
+  "subjectSourceValue":     "per-entity subject or SELECT with {VALUE}",
+  "bodySource":             "STATIC | DYNAMIC_SQL",
+  "bodySourceValue":        "per-entity body or SELECT with {VALUE}"
+}
+```
+
+Source types: **STATIC** (literal string) and **DYNAMIC_SQL** (`SELECT` with optional `{VALUE}` placeholder).
+LOOKUP_VIEW and SCALAR_FN are removed — DYNAMIC_SQL covers both patterns.
+
+### Recipients
+
+`ScheduleStandingRecipient` table — CC/BCC only, never TO.
+- `IncludeInFanOut = 1` → included on INDIVIDUAL rows (`@CcFanOut`)
+- `IncludeInFanOut = 0` → included on COMBINED row only (`@CcAll`)
+- TO address always comes from `Schedule.EmailSourceValue` (possibly per-entity override)
+
+No `Recipient` or `ScheduleRecipient` tables — those were removed.
+
+### Fallback chains (per field, INDIVIDUAL rows)
+
+| Field | Per-entity resolver | Fallback |
+|---|---|---|
+| ToAddresses | `ParameterDispatchConfig.EmailSourceValue` | — (required for INDIVIDUAL) |
+| FolderPath | `ParameterDispatchConfig.FolderSourceValue` | `Schedule.FolderSourceValue` |
+| FileName | `ParameterDispatchConfig.FileNameSourceValue` | `Schedule.FileNameSourceValue` |
+| EmailSubject | `ParameterDispatchConfig.SubjectSourceValue` | `Schedule.SubjectSourceValue` |
+| EmailBody | `ParameterDispatchConfig.BodySourceValue` | `Schedule.BodySourceValue` |
+| CcAddresses | `@CcFanOut` (IncludeInFanOut=1 standing recipients) | — |
 
 ---
 
@@ -35,261 +103,94 @@ scheduling-agent/
 | File | Purpose | Status |
 |---|---|---|
 | `sql/deploy/scheduling_agent_v3.sql` | Full schema + all stored procs | ✅ Complete |
+| `tools/schedule_builder.html` | Visual HTML builder + load existing schedule | ✅ Complete |
+| `docs/flowgear_integration.md` | Flowgear node sequence + dispatch behaviour | ✅ Current |
+| `docs/configuration_guide.md` | Configuration reference | ⚠ Stale — references removed architecture |
 | `sql/samples/scheduling_agent_samples.sql` | Sample registrations | ✅ Complete |
-| `sql/tests/scheduling_agent_test_suite.sql` | Test suite | ✅ Complete |
-| `docs/configuration_guide.md` | Configuration reference | ✅ Complete |
-| `tools/schedule_builder.html` | Visual SQL builder | ✅ Complete |
+| `sql/tests/scheduling_agent_test_suite.sql` | Test schedules | ✅ Complete |
 
 ---
 
-## Key architecture decisions
+## Completed items
 
-### Two-block dispatch design
+### SQL engine
 
-**`@DispatchJson`** (schedule-level, separate parameter):
-```json
-{
-  "deliveryMethod":    "EMAIL | FOLDER | BOTH",
-  "emailSource":       "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
-  "emailSourceValue":  "address or object name",
-  "folderSource":      "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
-  "folderSourceValue": "path or object name",
-  "fileNameTemplate":  "{{REPORTNAME}}_{{PREV_MONTH_END}}",
-  "fileNameSource":    "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
-  "fileNameSourceValue": "object name"
-}
-```
+- [x] All tables with Source/Value pattern (STATIC/DYNAMIC_SQL only — LOOKUP_VIEW/SCALAR_FN removed)
+- [x] `ScheduleStandingRecipient` table (CC/BCC only, `IncludeInFanOut` flag) — replaces old `Recipient`/`ScheduleRecipient` model
+- [x] `usp_RegisterSchedule` — parses `@DispatchJson` + `@ParametersJson` (with `fanOut` block) + `@RecipientsJson`; `fileNameTemplate` backward compat maps to STATIC source
+- [x] `usp_BuildDispatchQueue` — INDIVIDUAL cursor with full fallback chain; STRING_AGG email resolution; `@CcFanOut`/`@CcAll` CC routing; `@iSafeVal` REPLACE escaping; `fn_ResolveAllTokens` applied after resolution
+- [x] `usp_GetDueSchedules` — two result sets (diagnostic + dispatch rows); advances `NextRunAt`; sets ADHOC inactive after fire
+- [x] `usp_UpdateDispatchStatus` — marks rows SENT/SUCCESS/FAILED
+- [x] `usp_TestDispatch` — bypasses all gates; `@KeepResults=1` to preserve rows
+- [x] `usp_GetScheduleJson` (Section 4.5) — reads live schedule and reconstructs full `RegisterSQL` string for HTML round-trip; includes `fanOut` block for `IsPrimaryDispatchKey=1` params
+- [x] `fn_ResolveAllTokens` — resolves all `{{TOKEN}}` values via `DateToken` table + `fn_ResolveDateToken`
+- [x] `fn_ResolveDateToken` — resolves named date tokens (TODAY, PREV_MONTH_END, etc.)
+- [x] DROP block — correct FK-safe reverse order; covers old `ScheduleRecipient` for backward compat
 
-**`fanOut`** block (on one parameter, fan-out only):
-```json
-{
-  "isPrimary":             true,
-  "mode":                  "INDIVIDUAL | BOTH",
-  "emailSource":           "...",
-  "emailSourceValue":      "...",
-  "displayNameSource":     "...",
-  "displayNameSourceValue":"...",
-  "fileNameTemplate":      "{{REPORTNAME}}_{{DISPLAYNAME}}_{{PREV_MONTH_END}}",
-  "folderSource":          "...",
-  "folderSourceValue":     "..."
-}
-```
+### HTML builder
 
-Delivery method is a **schedule-level concern**. Fan-out is a **parameter-level
-concern**. They do not overlap.
-
-### Schema: `[schdl]`
-
-Delivery config lives on `Schedule` table. Fan-out per-entity resolvers live on
-`ParameterDispatchConfig`. Dynamic parameter values live in `ScheduleParameter.ParameterValueQuery`.
+- [x] 4-panel layout (token sidebar | wizard | Object Builder | SQL output)
+- [x] Steps 1-5 with all scheduling fields
+- [x] `fieldState` / `rcpState` two-store pattern
+- [x] Group-block pattern (delivery groups and fanout groups open in Object Builder panel)
+- [x] `syncCore()` generates correct `EXEC [schdl].[usp_RegisterSchedule]` with Source/Value keys only — no `*Template` keys
+- [x] `rcpState[]` as single source of truth for CC/BCC recipients
+- [x] `fo-folder` / `fo-filename` default to `mode:'parent'` (Use from Delivery)
+- [x] `updateOverwriteWarn()` fires on group open and on every mode change
+- [x] Click-away guard (`_obMouseDownInside`) preventing accidental close on text-select drag
+- [x] Load Schedule feature — parses `RegisterSQL` from `usp_GetScheduleJson` via `extractSqlParam()` regex and pre-fills all form fields
+- [x] Load panel z-index:20 / step-body z-index:0 (prevents overlap)
+- [x] Token drag-drop from sidebar to all inputs/textareas
 
 ---
 
-## Known items for Claude Code to address
+## Pending items
 
-### P1 — Must fix before production
+### Must do before go-live
 
-- [x] **`usp_BuildDispatchQueue` — INDIVIDUAL row email resolution**
-  No-params branch now uses `@sDeliveryMethod` (was hard-coded `'EMAIL'`).
-  Email, folder, and filename resolvers added — mirrors the COMBINED block logic.
-  All four source types (STATIC / LOOKUP_VIEW / SCALAR_FN / DYNAMIC_SQL) covered.
+- [ ] **`fn_FetchDocumentId` — implement real body**
+  Currently stubs out against `dbo.Document / sName / bEnabled`. Replace with
+  actual table name and column names for the target environment before production use.
 
-- [x] **`usp_BuildDispatchQueue` — schedule `@bsTok`/`@bsRes` DECLARE**
-  Added `@bsTok NVARCHAR(100)` and `@bsRes NVARCHAR(500)` to the BULK DECLARE
-  block. Cursor `bst` (schedule filename template token pass) now has its
-  FETCH targets declared.
+- [ ] **End-to-end Flowgear test**
+  Register a test schedule, run `usp_GetDueSchedules` with `@AsOf`, verify both
+  result sets, then run the actual Flowgear workflow end-to-end with the reference
+  implementation (see `docs/flowgear_integration.md` § Live Workflow Reference).
 
-- [ ] **`fn_FetchDocumentId` — implement body**
-  The function body is a stub pointing at `dbo.Document` / `sName` / `bEnabled`.
-  Replace with the actual table/column names for the target environment.
-  See `docs/configuration_guide.md` Step 2.
+- [ ] **Verify `usp_GetDueSchedules` result set shape matches Flowgear SQL Query node**
+  Confirm column names in result set 2 match what the Flowgear ForEach node expects.
+  Particularly: `ReportEndpoint`, `RequestJson`, `ToAddresses`, `CcAddresses`, `FolderPath`.
 
-- [ ] **`sched.vw_BRMEmail` and related lookup objects**
-  Sample views and functions in `sql/samples/` reference `dbo.BrokerRelationshipManager`.
-  Replace table and column names with actual schema objects.
+- [ ] **GitHub push**
+  Push current `sql/deploy/scheduling_agent_v3.sql` and `tools/schedule_builder.html`
+  to origin/main — these are the source of truth and must reflect the latest iterations.
 
-### P2 — Should fix before go-live
+### Should do
 
-- [ ] **Test suite registration names**
-  `scheduling_agent_test_suite.sql` registers schedules against `Test Report - *`
-  document names that don't exist in `dbo.Document`. Either create stub document
-  rows or update `fn_FetchDocumentId` to return a test ID for unknown names.
+- [ ] **`docs/configuration_guide.md` — full rewrite**
+  File is stale: references LOOKUP_VIEW/SCALAR_FN source options, old `@Subject`/
+  `@BodyTemplate` proc parameters, and `Recipient`/`ScheduleRecipient` tables that
+  no longer exist. Rewrite to match current Source/Value-only architecture.
 
-- [ ] **Token `{{TODAY-7}}` / `{{TODAY+3}}` resolution**
-  Dynamic offset tokens are resolved by `fn_ResolveDateToken` via regex pattern
-  matching. Verify the regex handles single-digit and multi-digit N correctly.
-  Add a test case to the test suite using `usp_TestDispatch` with `@AsOf`.
+- [ ] **Verify `{{TODAY-7}}` / `{{TODAY+3}}` offset token resolution**
+  `fn_ResolveDateToken` handles dynamic offsets. Verify the regex pattern correctly
+  handles both single-digit and multi-digit N values. Test with `usp_TestDispatch`
+  using a schedule that includes offset date tokens in Subject or FileName.
 
-- [ ] **`ParameterDispatchConfig` table — remove `BulkFolderPath` column**
-  This column was intended for combined delivery but has been moved to
-  `Schedule.FolderSourceValue`. The column may still exist in the deployed
-  schema from a previous run. The deploy script drops and recreates so this
-  is handled on redeploy, but verify the `ParameterDispatchConfig` CREATE
-  statement no longer includes it.
+- [ ] **Test suite document names**
+  `scheduling_agent_test_suite.sql` registers against `Test Report - *` document
+  names. Either create stub rows in `dbo.Document`, or update `fn_FetchDocumentId`
+  to return a test ID for unknown document names, so the test suite can run cleanly.
 
-- [ ] **`usp_RegisterSchedule` — `@pDeliveryMethod` variable**
-  Variable was removed from the DECLARE block but `ISNULL(dc.DeliveryMethod,'EMAIL')`
-  may still appear in `#Raw` SELECT if any intermediate edits missed it.
-  Run the full deploy script and verify no column-not-found errors.
+### Nice to have
 
-- [ ] **`schedule_builder.html` — `@RecipientsJson` CC/BCC only**
-  The builder now puts the combined TO address into `@DispatchJson` and
-  `@RecipientsJson` is CC/BCC only. But the `addRecipient()` function still
-  shows a TO option in the role dropdown. Either remove TO from the dropdown
-  or add a note that TO is managed via `@DispatchJson`.
+- [ ] **Builder — token preview**
+  "Preview as of today" button that resolves all `{{TOKEN}}` values in the current
+  Subject, Body, and FileName fields using today's date.
 
-### P3 — Nice to have
-
-- [ ] **Builder — import `@DispatchJson` from existing registration**
-  The JSON import in Step 1 parses `RequestJson` to populate parameters.
-  Add a second import that accepts the full `EXEC usp_RegisterSchedule` call
-  and pre-fills all fields including dispatch and fan-out config.
-
-- [ ] **Builder — preview resolved token values**
-  Add a "Preview as of today" button that shows what all date tokens in the
-  current Subject, Body, and FileName fields resolve to using today's date.
-
-- [ ] **Builder — validation on Step 5**
-  If fan-out mode is INDIVIDUAL or BOTH and no fan-out parameter is selected,
-  show a blocking validation error before allowing SQL generation.
-
-- [ ] **Flowgear workflow documentation**
-  Add a `docs/flowgear_integration.md` that shows the exact node sequence:
-  Execute → iterate result set → POST RequestJson → send/drop → update status.
-
----
-
-## Steps to set up with Claude Code + GitHub
-
-### 1. Create the GitHub repository
-
-```bash
-# On your machine or in Claude Code terminal
-gh repo create scheduling-agent --private --description "SQL Server scheduling agent"
-cd scheduling-agent
-git init
-```
-
-Or create it manually at https://github.com/new and clone it.
-
-### 2. Set up the folder structure
-
-```bash
-mkdir -p sql/deploy sql/samples sql/tests docs tools
-```
-
-### 3. Add all files
-
-Copy the deliverables into the right locations:
-
-```bash
-# From wherever you downloaded them:
-cp scheduling_agent_v3.sql          sql/deploy/
-cp scheduling_agent_samples.sql     sql/samples/
-cp scheduling_agent_test_suite.sql  sql/tests/
-cp scheduling_agent_configuration_guide.md  docs/configuration_guide.md
-cp schedule_builder.html            tools/
-cp PLAN.md                          ./
-```
-
-### 4. Create README.md
-
-````markdown
-# Scheduling Agent
-
-SQL Server scheduling agent. See [PLAN.md](PLAN.md) for architecture and
-[docs/configuration_guide.md](docs/configuration_guide.md) for setup steps.
-
-## Quick start
-
-1. Run `sql/deploy/scheduling_agent_v3.sql` against your database
-2. Implement `schdl.fn_FetchDocumentId` — see docs Step 2
-3. Register a schedule — use `tools/schedule_builder.html` to generate SQL
-4. Test: `EXEC schdl.usp_TestDispatch @ScheduleName = 'Your Schedule Name'`
-5. Go live: configure Flowgear to call `EXEC schdl.usp_GetDueSchedules`
-
-## Files
-
-| Path | Purpose |
-|---|---|
-| `sql/deploy/scheduling_agent_v3.sql` | Full deploy script — run this first |
-| `sql/samples/scheduling_agent_samples.sql` | Sample registrations to adapt |
-| `sql/tests/scheduling_agent_test_suite.sql` | Test all combinations |
-| `docs/configuration_guide.md` | Step-by-step configuration |
-| `tools/schedule_builder.html` | Visual schedule builder (open in browser) |
-````
-
-### 5. Initial commit
-
-```bash
-git add .
-git commit -m "feat: initial scheduling agent v3
-
-- Full schema in [schdl] schema
-- usp_RegisterSchedule with @DispatchJson + @ParametersJson/fanOut split
-- usp_BuildDispatchQueue with delivery from Schedule table
-- usp_GetDueSchedules with diagnostic result set
-- usp_TestDispatch for gate-bypassed testing
-- Dynamic parameter values via ParameterValueQuery
-- 24-schedule test suite
-- Visual schedule builder HTML tool
-- Configuration guide"
-
-git push -u origin main
-```
-
-### 6. Open in Claude Code
-
-```bash
-# Install Claude Code if not already installed
-npm install -g @anthropic-ai/claude-code
-
-# Open the project
-cd scheduling-agent
-claude
-```
-
-### 7. Prime Claude Code with the plan
-
-Paste this into Claude Code to orient it:
-
-```
-Read PLAN.md and understand the project structure.
-The primary SQL file is sql/deploy/scheduling_agent_v3.sql.
-Start with the P1 items in the Known Items section.
-Do not modify the schema without discussing the change — 
-the deploy script is a full drop-and-create so any schema 
-change affects all environments.
-```
-
-### 8. Suggested first Claude Code tasks
-
-Work through these in order:
-
-```
-1. Verify usp_BuildDispatchQueue compiles cleanly — run the deploy 
-   script and check for Msg 207 or Msg 208 errors.
-
-2. Fix the @bsTok/@bsRes DECLARE issue in the BULK filename cursor.
-
-3. Update fn_FetchDocumentId with the real document table query.
-
-4. Run the test suite against a dev database and confirm all 24 
-   schedules produce expected row counts in DispatchQueue.
-
-5. Update sample views/functions to match real table names.
-```
-
----
-
-## Environment variables / config
-
-None required in the SQL. The only environment-specific item is
-`schdl.fn_FetchDocumentId` — everything else is self-contained.
-
-For Flowgear:
-- **Trigger**: cron, call `EXEC schdl.usp_GetDueSchedules`
-- **Callback**: `EXEC schdl.usp_UpdateDispatchStatus @QueueID, @Status, @ErrorMessage`
+- [ ] **Builder — Step 5 validation**
+  If fan-out mode is INDIVIDUAL or BOTH but no primary parameter is selected,
+  show a blocking error before generating SQL.
 
 ---
 
@@ -298,8 +199,10 @@ For Flowgear:
 - [ ] Deploy script runs with zero errors on target database
 - [ ] `schdl.fn_FetchDocumentId('Your Document Name')` returns a non-NULL value
 - [ ] `EXEC schdl.usp_TestDispatch @ScheduleName = '...'` produces correct rows
-- [ ] `EXEC schdl.usp_GetDueSchedules @AsOf = '2026-07-01 06:00:00'` — all 4 gates Y
-- [ ] Flowgear test trigger processes one row end-to-end
-- [ ] Re-running `usp_RegisterSchedule` (upsert) updates all fields correctly
-- [ ] Dynamic parameter query returns correct values
-- [ ] Fan-out produces one row per entity with correct email/folder resolved
+- [ ] COMBINED schedule: 1 row, correct `ToAddresses`, `CcAddresses = @CcAll`
+- [ ] Fan-out schedule: N INDIVIDUAL rows + 1 COMBINED row; INDIVIDUAL `CcAddresses = @CcFanOut`
+- [ ] `EXEC schdl.usp_GetScheduleJson @ScheduleName = '...'` round-trips to valid `RegisterSQL`
+- [ ] `RegisterSQL` from above can be run as-is and produces the same schedule
+- [ ] Dynamic parameter query (`ParameterValueQuery`) returns correct values at runtime
+- [ ] `EXEC schdl.usp_GetDueSchedules @AsOf = '...'` — all 4 gates `Y` when expected
+- [ ] Flowgear test trigger processes one row end-to-end (email or folder)

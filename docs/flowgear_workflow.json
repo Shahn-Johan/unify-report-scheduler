@@ -1,0 +1,2152 @@
+{
+  "ActivationContext": 0,
+  "State": 0,
+  "LaunchMethod": 0,
+  "Workflow": {
+    "Version": 1,
+    "Revision": 0,
+    "Nodes": [
+      {
+        "NodeId": "9f6d2e6e-4096-b456-d658-797e6c7866ad",
+        "Name": "Start",
+        "Version": "1.0.0.3",
+        "Properties": [
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Last_Error_Info",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": false,
+        "Outputs": [
+          {
+            "Label": "Start",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Run_Now",
+            "IsException": false,
+            "IsDefault": false
+          },
+          {
+            "Label": "Any_Error",
+            "IsException": true,
+            "IsDefault": false
+          },
+          {
+            "Label": "Unhandled_Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 6100,
+          "Y": 3640
+        },
+        "DisplayName": "Start",
+        "NodeType": 0,
+        "RuntimeVersion": 1,
+        "PublishState": 0,
+        "IsObsolete": false
+      },
+      {
+        "NodeId": "40678b04-932e-de20-8fef-b9421ad45b57",
+        "Name": "SqlQuery",
+        "Version": "3.1.2.0",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "Server",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Database",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "AuthenticationMode",
+                "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection+AuthMode",
+                "ExtendedType": 0,
+                "EnumValues": [
+                  "UserCredential",
+                  "CertificateCredential"
+                ]
+              },
+              {
+                "Name": "UseWinAuth",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "UserId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "TenantId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "ClientId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Certificate",
+                "TypeName": "System.Security.Cryptography.X509Certificates.X509Certificate2",
+                "ExtendedType": 9
+              },
+              {
+                "Name": "AccessToken",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "ConnectionStringFragments",
+                "TypeName": "System.String",
+                "ExtendedType": 4
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "Microsoft SQL Query - SHAHN Express",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection",
+            "ExtendedType": 2,
+            "Value": "e6f998a8-2aef-4e91-abdd-85c132d50bc6"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "",
+            "IsSecret": false,
+            "Name": "Query",
+            "TypeName": "System.String",
+            "ExtendedType": 4,
+            "Value": "EXEC schdl.usp_GetDueSchedules"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "XmlQuery",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ResultXml",
+            "TypeName": "System.String",
+            "ExtendedType": 1,
+            "Value": "<Result>\r\n  <Table>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <FrequencyType>INTERVAL</FrequencyType>\r\n    <StartDate>2000-01-01T00:00:00+02:00</StartDate>\r\n    <NextRunAt>2026-06-10T10:22:16.5615876+02:00</NextRunAt>\r\n    <IsActive>true</IsActive>\r\n    <AsOfDate>2026-06-10</AsOfDate>\r\n    <AsOfTime>09:30:27.5621382</AsOfTime>\r\n    <Gate_IsActive>Y</Gate_IsActive>\r\n    <Gate_DateRange>Y</Gate_DateRange>\r\n    <Gate_NextRunAt>N</Gate_NextRunAt>\r\n    <Gate_Frequency>Y</Gate_Frequency>\r\n  </Table>\r\n  <Table1>\r\n    <QueueID>19</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>AGENT</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"AGENT\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>AGENT@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>20</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>CLAIMCOINS</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"CLAIMCOINS\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>CLAIMCOINS@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>21</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COINS</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COINS\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COINS@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>22</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COINSRISK</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COINSRISK\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COINSRISK@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>23</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COMM</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COMM\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COMM@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>24</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>OLDBORD</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"OLDBORD\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>OLDBORD@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>25</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>SUBAG</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"SUBAG\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>SUBAG@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>26</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>TAKEBACK</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"TAKEBACK\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>TAKEBACK@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>27</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>COMBINED</DispatchType>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"AGENT\",\"CLAIMCOINS\",\"COINS\",\"COINSRISK\",\"COMM\",\"OLDBORD\",\"SUBAG\",\"TAKEBACK\"],\"multiple\":true,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>reports@example.com</ToAddresses>\r\n    <CcAddresses>ahahah@12345,Test3Mails.com</CcAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n</Result>"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RowsAffected",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 6405,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Microsoft SQL Query",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2026-03-14T05:10:06.2791011+00:00",
+          "Username": "(ServiceHost)",
+          "UserKey": ""
+        }
+      },
+      {
+        "NodeId": "bf3e0e53-c57d-dd6b-58b6-25d6bb201f44",
+        "Name": "IfVisualBasic",
+        "ShortDescription": "Any Report Is Due",
+        "Version": "2.0.0.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Value",
+            "TypeName": "System.Object",
+            "ExtendedType": 0,
+            "Value": "[\r\n  {\r\n    \"QueueID\": \"19\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"AGENT\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"AGENT\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"AGENT@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"20\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"CLAIMCOINS\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"CLAIMCOINS\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"CLAIMCOINS@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"21\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COINS\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COINS\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COINS@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"22\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COINSRISK\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COINSRISK\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COINSRISK@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"23\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COMM\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COMM\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COMM@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"24\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"OLDBORD\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"OLDBORD\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"OLDBORD@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"25\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"SUBAG\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"SUBAG\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"SUBAG@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"26\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"TAKEBACK\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"TAKEBACK\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"TAKEBACK@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  },\r\n  {\r\n    \"QueueID\": \"27\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"COMBINED\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"AGENT\\\",\\\"CLAIMCOINS\\\",\\\"COINS\\\",\\\"COINSRISK\\\",\\\"COMM\\\",\\\"OLDBORD\\\",\\\"SUBAG\\\",\\\"TAKEBACK\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"reports@example.com\",\r\n    \"CcAddresses\": \"ahahah@12345,Test3Mails.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\"\r\n  }\r\n]"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Expression",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "Value <> \"\""
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "IsTrue",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "True",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "False",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 6710,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "If",
+        "NodeType": 2,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:56.1199583+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "Name": "ForEach",
+        "Version": "1.0.0.9",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "SourceDocument",
+            "TypeName": "System.String",
+            "ExtendedType": 4,
+            "Value": "[\r\n  {\r\n    \"QueueID\": \"19\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"AGENT\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"AGENT\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"AGENT@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Agent Reports_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"20\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"CLAIMCOINS\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"CLAIMCOINS\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"CLAIMCOINS@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Claim Coinsurer Bordereaux_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"21\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COINS\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COINS\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COINS@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Co-Insurance Remitance_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"22\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COINSRISK\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COINSRISK\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COINSRISK@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Co-Insurance Remitance With Risk Breakdown_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"23\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"COMM\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"COMM\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"COMM@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Commission Payover_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"24\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"OLDBORD\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"OLDBORD\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"OLDBORD@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Previous Bordereaux From File_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"25\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"SUBAG\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"SUBAG\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"SUBAG@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Sub Agent Reports_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"26\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"INDIVIDUAL\",\r\n    \"DispatchKeyValue\": \"TAKEBACK\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"TAKEBACK\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"TAKEBACK@gmail.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FileName\": \"Some Report_Takeback Bordereaux_2026-06-10.xlsx\"\r\n  },\r\n  {\r\n    \"QueueID\": \"27\",\r\n    \"LogID\": \"3\",\r\n    \"ScheduleID\": \"1\",\r\n    \"ScheduleName\": \"Some Report — Interval - 33\",\r\n    \"DeliveryMethod\": \"BOTH\",\r\n    \"DocumentName\": \"Some Report\",\r\n    \"ReportEndpoint\": \"/api/reports/generate\",\r\n    \"DispatchType\": \"COMBINED\",\r\n    \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"AGENT\\\",\\\"CLAIMCOINS\\\",\\\"COINS\\\",\\\"COINSRISK\\\",\\\"COMM\\\",\\\"OLDBORD\\\",\\\"SUBAG\\\",\\\"TAKEBACK\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n    \"ToAddresses\": \"reports@example.com\",\r\n    \"CcAddresses\": \"ahahah@12345,Test3Mails.com\",\r\n    \"BccAddresses\": \"Testbcc2@emails.com\",\r\n    \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n    \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n    \"FolderPath\": \"\\\\\\\\SomeServer\\\\Some Report\\\\2026\\\\2026-06-01\",\r\n    \"FileName\": \"Some Report_2026-05-31.xlsx\"\r\n  }\r\n]"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Path",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "[*]"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Encapsulation",
+            "TypeName": "flowgear.Nodes.Foreach.Foreach+EncapsulationMethod",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "None",
+              "ParentNode",
+              "ParentAndRootNodes"
+            ],
+            "Value": "None"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Namespaces",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ChunkSize",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0,
+            "Value": 1
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Item",
+            "TypeName": "System.String",
+            "ExtendedType": 4,
+            "Value": "{\r\n  \"QueueID\": \"19\",\r\n  \"LogID\": \"3\",\r\n  \"ScheduleID\": \"1\",\r\n  \"ScheduleName\": \"Some Report — Interval - 33\",\r\n  \"DeliveryMethod\": \"BOTH\",\r\n  \"DocumentName\": \"Some Report\",\r\n  \"ReportEndpoint\": \"/api/reports/generate\",\r\n  \"DispatchType\": \"INDIVIDUAL\",\r\n  \"DispatchKeyValue\": \"AGENT\",\r\n  \"RequestJson\": \"{\\\"documentId\\\":\\\"\\\",\\\"outputFormat\\\":\\\"xlsx\\\",\\\"language\\\":1,\\\"parameters\\\":[{\\\"name\\\":\\\"BrokerRelationshipManager\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"AGENT\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"Brokerage\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"38\\\",\\\"39\\\",\\\"39398\\\",\\\"39399\\\",\\\"39400\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Administrator_HeadOffice\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"2\\\",\\\"3\\\",\\\"39323\\\",\\\"39324\\\",\\\"41085\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CaptureDateTo\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-05-31\\\"],\\\"multiple\\\":false,\\\"required\\\":true},{\\\"name\\\":\\\"PaymentTerm\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"0\\\",\\\"1\\\",\\\"2\\\",\\\"3\\\",\\\"4\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"Product\\\",\\\"type\\\":\\\"string\\\",\\\"values\\\":[\\\"16970\\\",\\\"17110\\\"],\\\"multiple\\\":true,\\\"required\\\":true},{\\\"name\\\":\\\"CapturedDateFrom\\\",\\\"type\\\":\\\"date\\\",\\\"values\\\":[\\\"2026-06-30\\\"],\\\"multiple\\\":false,\\\"required\\\":true}],\\\"confidentiality\\\":\\\"normal\\\"}\",\r\n  \"ToAddresses\": \"AGENT@gmail.com\",\r\n  \"BccAddresses\": \"Testbcc2@emails.com\",\r\n  \"EmailSubject\": \"Some Report — 2026-05-01 to 2026-05-31\",\r\n  \"EmailBody\": \"Please find attached your report for 2026-05-01 to 2026-05-31.\",\r\n  \"FileName\": \"Some Report_Agent Reports_2026-06-10.xlsx\"\r\n}"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ItemIndex",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ItemCount",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "Item",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Finished",
+            "IsException": false,
+            "IsDefault": false
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7015,
+          "Y": 3640
+        },
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "For Each",
+        "NodeType": 1,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:26.1107073+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "896734b5-04e5-798e-25df-06edbdd6ed69",
+        "Name": "Formatter",
+        "ShortDescription": "Get The DocGen Request Json",
+        "Version": "2.0.0.0",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Expression",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Escaping",
+            "TypeName": "Flowgear.Nodes.Formatter.Formatter+EscapingMode",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "None",
+              "SQL",
+              "XML",
+              "JSON",
+              "Uri",
+              "UriSegment"
+            ],
+            "Value": "JSON"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Result",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7320,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Formatter",
+        "NodeType": 1,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:26.727782+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "dde32b50-5c08-3973-b06d-04d3bc06a5b6",
+        "Name": "Genasys Technologies Insurance API",
+        "ShortDescription": "Generate Report",
+        "Version": "1.0.0.18",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "SKiApiUrl",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "ApiKey",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "SKiOAuthUrl",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "UserName",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "AutoSubmitWithToken",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.Genasys.Connection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "OperationId",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": ""
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Request",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Response",
+            "TypeName": "System.Object",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ResponseCode",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 0,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Description",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7625,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": false,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": true,
+        "DisplayName": "Genasys SKi API",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "6bda5348-256c-4ca9-b680-2d22383a30dc",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:04:05.6474896+00:00",
+          "Username": "migration@flowgear.net",
+          "UserKey": "80569a97-7f36-46ff-9f86-345a26d7b3bb"
+        }
+      },
+      {
+        "NodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "Name": "Genasys Technologies Insurance API",
+        "ShortDescription": "Fetch Report",
+        "Version": "1.0.0.18",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "SKiApiUrl",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "ApiKey",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "SKiOAuthUrl",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "UserName",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "AutoSubmitWithToken",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.Genasys.Connection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "OperationId",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": ""
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Request",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Response",
+            "TypeName": "System.Object",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ResponseCode",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 0,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Description",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7930,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": false,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": true,
+        "DisplayName": "Genasys SKi API",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "6bda5348-256c-4ca9-b680-2d22383a30dc",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:04:05.6474896+00:00",
+          "Username": "migration@flowgear.net",
+          "UserKey": "80569a97-7f36-46ff-9f86-345a26d7b3bb"
+        }
+      },
+      {
+        "NodeId": "40676cca-cbd1-11a4-f1b9-0ee922c2656f",
+        "Name": "Choose",
+        "ShortDescription": "Dispatch Method",
+        "Version": "1.0.0.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Expression",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          },
+          {
+            "Label": "EMAIL",
+            "IsException": false,
+            "IsDefault": false
+          },
+          {
+            "Label": "FOLDER",
+            "IsException": false,
+            "IsDefault": false
+          },
+          {
+            "Label": "BOTH",
+            "IsException": false,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8235,
+          "Y": 3640
+        },
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Choose",
+        "NodeType": 2,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T11:59:59.8974535+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "Name": "SingleEmail",
+        "Version": "1.0.1.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "Server",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Port",
+                "TypeName": "System.Int32",
+                "ExtendedType": 0,
+                "Value": 110
+              },
+              {
+                "Name": "Username",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "UseSsl",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "flowgear.Nodes.Email.Connection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Sender",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "FromEmailAddress"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Recipients",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": ""
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Subject",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "MessageId",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Body",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "HtmlBody",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "BodyProcessor",
+            "TypeName": "flowgear.Nodes.Email.SingleEmail+BodyProcessors",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "None",
+              "XmlToHtmlTable"
+            ],
+            "Value": "None"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "AttachmentName",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Attachment",
+            "TypeName": "System.Object",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RecipientsCC",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RecipientsBCC",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8540,
+          "Y": 3640
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Single Email",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-07-15T15:40:52.8735674+00:00",
+          "Username": "migration@flowgear.net",
+          "UserKey": "dfc2b797-7249-40e2-b021-5d69a16336fe"
+        }
+      },
+      {
+        "NodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "Name": "FileCopy",
+        "ShortDescription": "File Copy",
+        "Version": "2.0.0.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "CreateTargetDirectory",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "OverwriteOnConflict",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.File.FileCopyConnection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "SourcePath",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "DestinationPath",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8540,
+          "Y": 4108
+        },
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "File Copy",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:15.0211254+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "487c7108-57bf-7095-f854-744e08ac20ec",
+        "Name": "SqlQuery",
+        "ShortDescription": "Mark As Succesful",
+        "Version": "3.1.2.0",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "Server",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Database",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "AuthenticationMode",
+                "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection+AuthMode",
+                "ExtendedType": 0,
+                "EnumValues": [
+                  "UserCredential",
+                  "CertificateCredential"
+                ]
+              },
+              {
+                "Name": "UseWinAuth",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "UserId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "TenantId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "ClientId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Certificate",
+                "TypeName": "System.Security.Cryptography.X509Certificates.X509Certificate2",
+                "ExtendedType": 9
+              },
+              {
+                "Name": "AccessToken",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "ConnectionStringFragments",
+                "TypeName": "System.String",
+                "ExtendedType": 4
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "Microsoft SQL Query - SHAHN Express",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection",
+            "ExtendedType": 2,
+            "Value": "e6f998a8-2aef-4e91-abdd-85c132d50bc6"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "",
+            "IsSecret": false,
+            "Name": "Query",
+            "TypeName": "System.String",
+            "ExtendedType": 4,
+            "Value": "EXEC schdl.usp_UpdateDispatchStatus @QueueID, @Status, @ErrorMessage"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "XmlQuery",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "",
+            "IsSecret": false,
+            "Name": "ResultXml",
+            "TypeName": "System.String",
+            "ExtendedType": 1,
+            "Value": ""
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RowsAffected",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 2,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "QueueID",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 2,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Status",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "SUCCESS"
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8845,
+          "Y": 4108
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Microsoft SQL Query",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2026-03-14T05:10:06.2791011+00:00",
+          "Username": "(ServiceHost)",
+          "UserKey": ""
+        }
+      },
+      {
+        "NodeId": "b5818e0d-a86a-4062-0f60-2d853a68f23d",
+        "Name": "SingleEmail",
+        "Version": "1.0.1.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "Server",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Port",
+                "TypeName": "System.Int32",
+                "ExtendedType": 0,
+                "Value": 110
+              },
+              {
+                "Name": "Username",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "UseSsl",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "flowgear.Nodes.Email.Connection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Sender",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "FromEmailAddress"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Recipients",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": ""
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Subject",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "MessageId",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Body",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "HtmlBody",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "BodyProcessor",
+            "TypeName": "flowgear.Nodes.Email.SingleEmail+BodyProcessors",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "None",
+              "XmlToHtmlTable"
+            ],
+            "Value": "None"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "AttachmentName",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Attachment",
+            "TypeName": "System.Object",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RecipientsCC",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RecipientsBCC",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8540,
+          "Y": 4446
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Single Email",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-07-15T15:40:52.8735674+00:00",
+          "Username": "migration@flowgear.net",
+          "UserKey": "dfc2b797-7249-40e2-b021-5d69a16336fe"
+        }
+      },
+      {
+        "NodeId": "fd2e76d6-fde5-1b27-9f88-aafbed9b0571",
+        "Name": "FileCopy",
+        "ShortDescription": "File Copy",
+        "Version": "2.0.0.1",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "CreateTargetDirectory",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "OverwriteOnConflict",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "(None)",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.File.FileCopyConnection",
+            "ExtendedType": 2
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "SourcePath",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "DestinationPath",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 8845,
+          "Y": 4446
+        },
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "File Copy",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:15.0211254+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "Name": "Replace",
+        "ShortDescription": "Grab Last Error",
+        "Version": "1.0.0.10",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Expression",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Method",
+            "TypeName": "flowgear.Nodes.Expressions.Replace+MatchMethods",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "Text",
+              "RegEx"
+            ],
+            "Value": "Text"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Find",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "'"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ReplaceWith",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "''"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Output",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7320,
+          "Y": 4914
+        },
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Replace",
+        "NodeType": 2,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:02:05.6383058+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "530d717f-48f3-a5d8-ef42-678617eff5b0",
+        "Name": "Formatter",
+        "ShortDescription": "Capture Error",
+        "Version": "2.0.0.0",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Expression",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Escaping",
+            "TypeName": "Flowgear.Nodes.Formatter.Formatter+EscapingMode",
+            "ExtendedType": 0,
+            "EnumValues": [
+              "None",
+              "SQL",
+              "XML",
+              "JSON",
+              "Uri",
+              "UriSegment"
+            ],
+            "Value": "None"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Result",
+            "TypeName": "System.String",
+            "ExtendedType": 4
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7625,
+          "Y": 4914
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": false,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Formatter",
+        "NodeType": 1,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2024-06-06T12:00:26.727782+00:00",
+          "Username": "rikard.schouwstra@flowgear.net",
+          "UserKey": "4e962105-129e-4d2e-afa8-951ca649e600"
+        }
+      },
+      {
+        "NodeId": "2aee5369-6a7c-87a0-67a8-6fba4f70de9c",
+        "Name": "SqlQuery",
+        "Version": "3.1.2.0",
+        "Properties": [
+          {
+            "FlowDirection": 1,
+            "SubProperties": [
+              {
+                "Name": "Server",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Database",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "AuthenticationMode",
+                "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection+AuthMode",
+                "ExtendedType": 0,
+                "EnumValues": [
+                  "UserCredential",
+                  "CertificateCredential"
+                ]
+              },
+              {
+                "Name": "UseWinAuth",
+                "TypeName": "System.Boolean",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "UserId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Password",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "TenantId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "ClientId",
+                "TypeName": "System.String",
+                "ExtendedType": 0
+              },
+              {
+                "Name": "Certificate",
+                "TypeName": "System.Security.Cryptography.X509Certificates.X509Certificate2",
+                "ExtendedType": 9
+              },
+              {
+                "Name": "AccessToken",
+                "TypeName": "System.String",
+                "ExtendedType": 3
+              },
+              {
+                "Name": "ConnectionStringFragments",
+                "TypeName": "System.String",
+                "ExtendedType": 4
+              }
+            ],
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "Microsoft SQL Query - SHAHN Express",
+            "IsSecret": false,
+            "Name": "Connection",
+            "TypeName": "Flowgear.Nodes.Sql.MsSql.MicrosoftSqlConnection",
+            "ExtendedType": 2,
+            "Value": "e6f998a8-2aef-4e91-abdd-85c132d50bc6"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "Schema": "",
+            "IsSecret": false,
+            "Name": "Query",
+            "TypeName": "System.String",
+            "ExtendedType": 4,
+            "Value": "EXEC schdl.usp_UpdateDispatchStatus @QueueID, @Status, @ErrorMessage"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "XmlQuery",
+            "TypeName": "System.Boolean",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ResultXml",
+            "TypeName": "System.String",
+            "ExtendedType": 1,
+            "Value": "<Result>\r\n  <Table>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <FrequencyType>INTERVAL</FrequencyType>\r\n    <StartDate>2000-01-01T00:00:00+02:00</StartDate>\r\n    <NextRunAt>2026-06-10T10:22:16.5615876+02:00</NextRunAt>\r\n    <IsActive>true</IsActive>\r\n    <AsOfDate>2026-06-10</AsOfDate>\r\n    <AsOfTime>09:30:27.5621382</AsOfTime>\r\n    <Gate_IsActive>Y</Gate_IsActive>\r\n    <Gate_DateRange>Y</Gate_DateRange>\r\n    <Gate_NextRunAt>N</Gate_NextRunAt>\r\n    <Gate_Frequency>Y</Gate_Frequency>\r\n  </Table>\r\n  <Table1>\r\n    <QueueID>19</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>AGENT</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"AGENT\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>AGENT@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>20</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>CLAIMCOINS</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"CLAIMCOINS\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>CLAIMCOINS@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>21</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COINS</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COINS\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COINS@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>22</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COINSRISK</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COINSRISK\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COINSRISK@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>23</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>COMM</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"COMM\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>COMM@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>24</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>OLDBORD</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"OLDBORD\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>OLDBORD@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>25</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>SUBAG</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"SUBAG\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>SUBAG@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>26</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>INDIVIDUAL</DispatchType>\r\n    <DispatchKeyValue>TAKEBACK</DispatchKeyValue>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"TAKEBACK\"],\"multiple\":false,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>TAKEBACK@gmail.com</ToAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n  <Table1>\r\n    <QueueID>27</QueueID>\r\n    <LogID>3</LogID>\r\n    <ScheduleID>1</ScheduleID>\r\n    <ScheduleName>Some Report — Interval - 33</ScheduleName>\r\n    <DeliveryMethod>BOTH</DeliveryMethod>\r\n    <DocumentName>Some Report</DocumentName>\r\n    <ReportEndpoint>/api/reports/generate</ReportEndpoint>\r\n    <DispatchType>COMBINED</DispatchType>\r\n    <RequestJson>{\"documentId\":\"\",\"outputFormat\":\"xlsx\",\"language\":1,\"parameters\":[{\"name\":\"BrokerRelationshipManager\",\"type\":\"string\",\"values\":[\"AGENT\",\"CLAIMCOINS\",\"COINS\",\"COINSRISK\",\"COMM\",\"OLDBORD\",\"SUBAG\",\"TAKEBACK\"],\"multiple\":true,\"required\":true},{\"name\":\"Brokerage\",\"type\":\"string\",\"values\":[\"38\",\"39\",\"39398\",\"39399\",\"39400\"],\"multiple\":true,\"required\":true},{\"name\":\"Administrator_HeadOffice\",\"type\":\"string\",\"values\":[\"2\",\"3\",\"39323\",\"39324\",\"41085\"],\"multiple\":true,\"required\":true},{\"name\":\"CaptureDateTo\",\"type\":\"date\",\"values\":[\"2026-05-31\"],\"multiple\":false,\"required\":true},{\"name\":\"PaymentTerm\",\"type\":\"string\",\"values\":[\"0\",\"1\",\"2\",\"3\",\"4\"],\"multiple\":true,\"required\":true},{\"name\":\"Product\",\"type\":\"string\",\"values\":[\"16970\",\"17110\"],\"multiple\":true,\"required\":true},{\"name\":\"CapturedDateFrom\",\"type\":\"date\",\"values\":[\"2026-06-30\"],\"multiple\":false,\"required\":true}],\"confidentiality\":\"normal\"}</RequestJson>\r\n    <ToAddresses>reports@example.com</ToAddresses>\r\n    <CcAddresses>ahahah@12345,Test3Mails.com</CcAddresses>\r\n    <BccAddresses>Testbcc2@emails.com</BccAddresses>\r\n    <EmailSubject>Some Report — 2026-05-01 to 2026-05-31</EmailSubject>\r\n    <EmailBody>Please find attached your report for 2026-05-01 to 2026-05-31.</EmailBody>\r\n  </Table1>\r\n</Result>"
+          },
+          {
+            "FlowDirection": 2,
+            "Behaviour": 0,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "RowsAffected",
+            "TypeName": "System.Int32",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 2,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "QueueID",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 2,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "Status",
+            "TypeName": "System.String",
+            "ExtendedType": 0,
+            "Value": "FAILED"
+          },
+          {
+            "FlowDirection": 1,
+            "Behaviour": 2,
+            "CustomPropertyEscaping": 0,
+            "IsSecret": false,
+            "Name": "ErrorMessage",
+            "TypeName": "System.String",
+            "ExtendedType": 0
+          }
+        ],
+        "HasInput": true,
+        "Outputs": [
+          {
+            "Label": "",
+            "IsException": false,
+            "IsDefault": true
+          },
+          {
+            "Label": "Error",
+            "IsException": true,
+            "IsDefault": false
+          }
+        ],
+        "NodeVisual": {
+          "X": 7930,
+          "Y": 4914
+        },
+        "SupportsCustomInputProperties": true,
+        "SupportsCustomOutputProperties": true,
+        "SupportsTest": true,
+        "SupportsAcquireMetadata": false,
+        "SupportsListSamples": false,
+        "DisplayName": "Microsoft SQL Query",
+        "NodeType": 0,
+        "Key": "latest",
+        "RuntimeVersion": 1,
+        "AccountKey": "c9bfa373-023b-4e90-a876-3b25ed7b0ce0",
+        "PublishState": 3,
+        "IsObsolete": false,
+        "Metadata": {
+          "ModifiedTime": "2026-03-14T05:10:06.2791011+00:00",
+          "Username": "(ServiceHost)",
+          "UserKey": ""
+        }
+      }
+    ],
+    "FlowConnectors": [
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "9f6d2e6e-4096-b456-d658-797e6c7866ad",
+        "TargetNodeId": "40678b04-932e-de20-8fef-b9421ad45b57",
+        "SourceName": "Start"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "40678b04-932e-de20-8fef-b9421ad45b57",
+        "TargetNodeId": "bf3e0e53-c57d-dd6b-58b6-25d6bb201f44",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "40678b04-932e-de20-8fef-b9421ad45b57",
+        "TargetNodeId": "bf3e0e53-c57d-dd6b-58b6-25d6bb201f44",
+        "SourceName": "ResultXml",
+        "TargetName": "Value",
+        "Expression": "Result.Table1"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "bf3e0e53-c57d-dd6b-58b6-25d6bb201f44",
+        "TargetNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "SourceName": "True"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "40678b04-932e-de20-8fef-b9421ad45b57",
+        "TargetNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "SourceName": "ResultXml",
+        "TargetName": "SourceDocument",
+        "Expression": "Result.Table1"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "896734b5-04e5-798e-25df-06edbdd6ed69",
+        "SourceName": "Item"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "896734b5-04e5-798e-25df-06edbdd6ed69",
+        "SourceName": "Item",
+        "TargetName": "Expression",
+        "Expression": "RequestJson"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "9f6d2e6e-4096-b456-d658-797e6c7866ad",
+        "TargetNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "SourceName": "Last_Error_Info",
+        "TargetName": "Expression"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "dde32b50-5c08-3973-b06d-04d3bc06a5b6",
+        "TargetNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "SourceName": "Error"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "TargetNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "SourceName": "Error"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "TargetNodeId": "530d717f-48f3-a5d8-ef42-678617eff5b0",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "TargetNodeId": "530d717f-48f3-a5d8-ef42-678617eff5b0",
+        "SourceName": "Output",
+        "TargetName": "Expression"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "530d717f-48f3-a5d8-ef42-678617eff5b0",
+        "TargetNodeId": "2aee5369-6a7c-87a0-67a8-6fba4f70de9c",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "530d717f-48f3-a5d8-ef42-678617eff5b0",
+        "TargetNodeId": "2aee5369-6a7c-87a0-67a8-6fba4f70de9c",
+        "SourceName": "Result",
+        "TargetName": "ErrorMessage"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "2aee5369-6a7c-87a0-67a8-6fba4f70de9c",
+        "SourceName": "Item",
+        "TargetName": "QueueID",
+        "Expression": "QueueID"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "TargetNodeId": "40676cca-cbd1-11a4-f1b9-0ee922c2656f",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "40676cca-cbd1-11a4-f1b9-0ee922c2656f",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "EMAIL"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "Recipients",
+        "Expression": "ToAddresses"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "RecipientsCC",
+        "Expression": "CcAddresses"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "RecipientsBCC",
+        "Expression": "BccAddresses"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "TargetNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "SourceName": "Error"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "TargetNodeId": "487c7108-57bf-7095-f854-744e08ac20ec",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Response",
+        "TargetName": "Attachment"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "Body",
+        "Expression": "EmailBody"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "Subject",
+        "Expression": "EmailSubject"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "40676cca-cbd1-11a4-f1b9-0ee922c2656f",
+        "TargetNodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "SourceName": "FOLDER"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "SourceName": "Item",
+        "TargetName": "DestinationPath",
+        "Expression": "FolderPath"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "TargetNodeId": "487c7108-57bf-7095-f854-744e08ac20ec",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "TargetNodeId": "8d69c4ae-20a3-4692-b3cf-f5c45f567241",
+        "SourceName": "Error"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "ffff2745-5ac2-2172-aafd-e2a6176f669e",
+        "SourceName": "Item",
+        "TargetName": "AttachmentName",
+        "Expression": "FileName"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "40676cca-cbd1-11a4-f1b9-0ee922c2656f",
+        "TargetNodeId": "b5818e0d-a86a-4062-0f60-2d853a68f23d",
+        "SourceName": "BOTH"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "b5818e0d-a86a-4062-0f60-2d853a68f23d",
+        "TargetNodeId": "fd2e76d6-fde5-1b27-9f88-aafbed9b0571",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "fd2e76d6-fde5-1b27-9f88-aafbed9b0571",
+        "TargetNodeId": "487c7108-57bf-7095-f854-744e08ac20ec",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "487c7108-57bf-7095-f854-744e08ac20ec",
+        "SourceName": "Item",
+        "TargetName": "QueueID"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "TargetNodeId": "8cf720fd-b2c6-07ad-3f94-378cea11dabe",
+        "SourceName": "Response",
+        "TargetName": "SourcePath"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "TargetNodeId": "fd2e76d6-fde5-1b27-9f88-aafbed9b0571",
+        "SourceName": "Response",
+        "TargetName": "SourcePath"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "3643ada1-6420-790c-4d45-9c9e36549ead",
+        "TargetNodeId": "fd2e76d6-fde5-1b27-9f88-aafbed9b0571",
+        "SourceName": "Item",
+        "TargetName": "DestinationPath",
+        "Expression": "FolderPath"
+      },
+      {
+        "FlowConnectorType": 2,
+        "SourceNodeId": "896734b5-04e5-798e-25df-06edbdd6ed69",
+        "TargetNodeId": "dde32b50-5c08-3973-b06d-04d3bc06a5b6",
+        "SourceName": "Result",
+        "TargetName": "Request"
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "896734b5-04e5-798e-25df-06edbdd6ed69",
+        "TargetNodeId": "dde32b50-5c08-3973-b06d-04d3bc06a5b6",
+        "SourceName": ""
+      },
+      {
+        "FlowConnectorType": 1,
+        "SourceNodeId": "dde32b50-5c08-3973-b06d-04d3bc06a5b6",
+        "TargetNodeId": "ebed9e01-9176-bae4-dac6-b1f24433bc43",
+        "SourceName": ""
+      }
+    ],
+    "StartNodeId": "9f6d2e6e-4096-b456-d658-797e6c7866ad",
+    "ActivityLogLevelMask": 255
+  },
+  "SiteKey": "042f65fe-2723-47c4-9547-a967fec24357",
+  "Key": "3568c03f-ac1b-4870-bbb2-f471e1399445",
+  "Path": "site-042f65fe-2723-47c4-9547-a967fec24357/workflow-3568c03f-ac1b-4870-bbb2-f471e1399445.json",
+  "Name": "Flowgear - DocGen - Report Scheduler",
+  "FileHash": "0000006",
+  "RuntimeVersion": 1,
+  "FolderKey": "a106667f-c42d-4a42-ab3d-f91572390418",
+  "LaunchModeMask": 0,
+  "Metadata": {
+    "ModifiedTime": "2026-06-10T10:31:47.8218992+00:00",
+    "Username": "shahnj@genasystech.com",
+    "UserKey": "48cef8ea-8211-442b-a2a8-3b680792841a"
+  }
+}

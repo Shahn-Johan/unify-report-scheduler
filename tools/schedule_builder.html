@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Schedule Builder</title>
+<title>Flowgear - DocGen - Schedule Builder</title>
 <style>
 :root {
   --bg:       #0d1117;
@@ -59,6 +59,8 @@ header p{color:var(--muted);font-size:12px;margin-left:4px}
 .step{
   border-bottom:1px solid var(--border);
   flex-shrink:0;
+  position:relative;
+  z-index:1;
 }
 .step-header{
   padding:14px 18px;display:flex;align-items:center;gap:12px;
@@ -81,7 +83,7 @@ header p{color:var(--muted);font-size:12px;margin-left:4px}
 .step-summary{font-size:11px;color:var(--muted);margin-top:1px}
 .step-chevron{color:var(--muted);transition:transform .2s;margin-left:auto}
 .step.active .step-chevron{transform:rotate(180deg)}
-.step-body{display:none;padding:16px 18px 20px;background:var(--bg);flex-direction:column;gap:14px}
+.step-body{display:none;padding:16px 18px 20px;background:var(--bg);flex-direction:column;gap:14px;position:relative;z-index:0}
 .step.active .step-body{display:flex}
 
 /* ── FORM ELEMENTS ── */
@@ -154,7 +156,7 @@ select option{background:var(--s2)}
 .ptag.int{background:#2d1f3f;color:#a371f7}
 .ptag.fanout{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
 .ptag.dynamic{background:#2a1800;border:1px solid var(--yellow);color:var(--yellow)}
-.vsource-tabs{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px}
+.vsource-tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px}
 .vstab{
   flex:1;text-align:center;padding:6px 4px;font-size:11px;font-weight:600;
   color:var(--muted);cursor:pointer;background:var(--s2);border:none;transition:all .15s;
@@ -189,6 +191,8 @@ select option{background:var(--s2)}
 }
 .val-ok::before{content:'✓';font-weight:700;flex-shrink:0}
 .dyn-src-hint strong{color:var(--text)}
+.grp-section-label{font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--label);padding:14px 0 5px;border-top:1px solid var(--border);margin-top:10px}
+.grp-section-label:first-child{border-top:none;margin-top:0;padding-top:0}
 .dyn-query-hint{font-size:10px;color:var(--muted);line-height:1.5;
   background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:7px 10px}
 .dyn-query-hint code{font-family:var(--mono);color:var(--yellow);font-size:10px}
@@ -256,9 +260,12 @@ select option{background:var(--s2)}
 .tog-label{font-size:12px;font-weight:600;color:var(--label)}
 
 /* recipients */
-.rcp-row{display:grid;grid-template-columns:1fr 1.4fr 80px 30px;gap:6px;align-items:center}
+.rcp-row{display:grid;grid-template-columns:80px 1fr auto 28px;gap:6px;align-items:center;margin-bottom:4px}
 .rcp-row button{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;font-size:14px;height:32px}
 .rcp-row button:hover{color:var(--red);border-color:var(--red)}
+.rcp-fanout-label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;padding:0 4px}
+.rcp-fanout-label input[type=checkbox]{width:auto;cursor:pointer;accent-color:var(--accent)}
+.rcp-fanout-label.active{color:var(--accent)}
 
 /* add btn */
 .add-btn{
@@ -280,6 +287,47 @@ select option{background:var(--s2)}
 
 /* step actions */
 .step-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+
+/* ── OBJECT BUILDER FIELD ZONE ── */
+#ob-field-zone { display:none;flex-direction:column;overflow:hidden; }
+#ob-field-body .field label { font-size:11px;color:var(--label);font-weight:600;margin-bottom:3px;display:block }
+#ob-field-body .field { margin-bottom:10px }
+.tok-chip { display:inline-block;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:10px;font-family:var(--mono);color:var(--accent);cursor:pointer;white-space:nowrap }
+.tok-chip:hover { background:var(--accent);color:#fff;border-color:var(--accent) }
+.param-val-summary { display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--s2);border-radius:4px;font-size:11px;margin:4px 0 6px;border:1px solid var(--border) }
+.param-val-summary .pvs-text { flex:1;color:var(--text);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.param-val-summary .pvs-icon { color:var(--muted);font-size:13px;flex-shrink:0 }
+.param-adv-toggle { font-size:10px;color:var(--muted);cursor:pointer;padding:3px 0;user-select:none;display:inline-flex;align-items:center;gap:4px }
+.param-adv-toggle:hover { color:var(--text) }
+.param-adv-body { display:none }
+.param-adv-body.open { display:block }
+
+/* ── OB TRIGGER ROWS ── */
+.ob-trigger{padding:9px 13px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--s2);transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.ob-trigger:hover{border-color:var(--accent);background:var(--s3,var(--s2))}
+.ob-trigger.active{border-color:var(--accent);border-left:3px solid var(--accent)}
+.ob-trigger.invalid{border-color:var(--red)}
+.ob-trigger-label{font-size:10px;font-weight:700;color:var(--label);display:flex;align-items:center;justify-content:space-between;letter-spacing:.04em;text-transform:uppercase}
+.ob-trigger-value{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+.ob-trigger-value.empty{color:var(--red);opacity:.75;font-family:inherit}
+@keyframes obj-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+
+/* ── OB GROUPS ── */
+.ob-group{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;cursor:pointer}
+.ob-group-header{background:var(--s2);padding:8px 14px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--label);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.ob-group-row{padding:6px 14px;border-top:1px solid var(--border);cursor:pointer}
+.ob-group-row-label{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--label);margin-bottom:2px;cursor:pointer}
+.ob-group-row-val{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.ob-group .ob-trigger{border:none;border-bottom:1px solid var(--border);border-radius:0;margin-bottom:0}
+.ob-group .ob-trigger:last-child{border-bottom:none}
+.ob-group .ob-trigger.active{border-left:3px solid var(--accent);background:var(--s3,var(--s2))}
+
+/* ── DELIVERY RAIL ROWS ── */
+.dlv-rail-row{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--s2);border-radius:4px;cursor:pointer;font-size:11px;margin-bottom:8px;border:1px solid var(--border)}
+.dlv-rail-row:hover{border-color:var(--accent)}
+.dlv-rail-icon{flex-shrink:0;font-size:14px}
+.dlv-rail-text{flex:1;color:var(--muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlv-rail-edit{color:var(--muted);font-size:13px;flex-shrink:0}
 .btn{
   border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 16px;
   border:1px solid;transition:all .15s;
@@ -288,6 +336,16 @@ select option{background:var(--s2)}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent2);border-color:var(--accent2)}
+
+/* ── LOAD PANEL ── */
+.load-panel{background:var(--bg);border-bottom:1px solid var(--border);border-left:3px solid var(--accent2);overflow:hidden;position:relative;z-index:20;flex-shrink:0;}
+.load-panel-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none}
+.load-panel-head:hover{background:var(--s2)}
+.load-panel-title{font-size:12px;font-weight:600;color:var(--text);flex:1}
+.load-panel-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.load-chevron{flex-shrink:0;color:var(--muted);transition:transform .2s}
+.load-panel-body{display:none;padding:12px 14px 14px;border-top:1px solid var(--border);flex-direction:column;gap:10px}
+.load-panel-body.open{display:flex;position:relative;z-index:10;background:var(--bg)}
 
 /* ── SQL PANEL ── */
 
@@ -421,16 +479,44 @@ select option{background:var(--s2)}
 
 <header>
   <div class="logo">sched</div>
-  <h1>Schedule Builder</h1>
+  <h1>Flowgear - DocGen - Schedule Builder</h1>
   <p>— step-by-step registration</p>
-  <div class="hdr-right">
+  <!--div class="hdr-right">
     <button class="btn btn-ghost" onclick="copySQL()">Copy SQL</button>
     <button class="btn btn-primary" onclick="downloadSQL()">Download .sql</button>
-  </div>
+  </div-->
 </header>
 
 <!-- ════════════ WIZARD ════════════ -->
 <div id="wizard">
+
+  <!-- LOAD EXISTING SCHEDULE -->
+  <div class="load-panel" id="load-panel">
+    <div class="load-panel-head" onclick="toggleLoadPanel()">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;color:var(--accent2)" stroke="currentColor" stroke-width="1.5">
+        <path d="M8 2v8M5 7l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 11v2a1 1 0 001 1h8a1 1 0 001-1v-2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="load-panel-title">Load Existing Schedule</div>
+        <div class="load-panel-sub">Paste the RegisterSQL output from: EXEC schdl.usp_GetScheduleJson @ScheduleName='...'</div>
+      </div>
+      <svg class="load-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="load-panel-body" id="load-panel-body">
+      <div class="info" style="font-size:11px;line-height:1.6;padding:10px 12px;background:var(--s2);border-radius:6px;border:1px solid var(--border)">
+        Run the following in SSMS to get the RegisterSQL for any existing schedule, then paste the result here:<br><br>
+        <code style="font-family:var(--mono);color:var(--accent)">EXEC schdl.usp_GetScheduleJson @ScheduleName = 'Your Schedule Name'</code>
+      </div>
+      <div class="field" style="position:relative">
+        <textarea id="loadScheduleJson" rows="5" placeholder="Paste the RegisterSQL column value here to pre-fill all fields for editing..."></textarea>
+        <button onclick="loadSchedule()" style="position:absolute;right:8px;top:8px;background:var(--accent2);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:10px;font-weight:700;padding:5px 9px">Load ↓</button>
+      </div>
+      <div id="load-msg" style="font-size:11px;margin-top:4px"></div>
+    </div>
+  </div>
 
   <!-- STEP 1: DOCUMENT -->
   <div class="step active" id="s1">
@@ -466,22 +552,13 @@ select option{background:var(--s2)}
         <div class="field">
           <label>Confidentiality</label>
           <select id="confidentiality" onchange="sync()">
-            <option value="normal">Normal</option>
-            <option value="restricted">Restricted</option>
-            <option value="confidential">Confidential</option>
+			<option value="normal">Normal</option>
+			<option value="personal">Personal</option>
+			<option value="private">Private</option>
+			<option value="confidential">Confidential</option>
+			<option value="webpublished">Web Published</option>
+			<option value="none">None</option>
           </select>
-        </div>
-      </div>
-
-      <!-- Load existing schedule -->
-      <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:4px">
-        <div class="field">
-          <label>Load Existing Schedule <span class="opt">— paste <code>RegisterSQL</code> from <code>EXEC schdl.usp_GetScheduleJson @ScheduleName='...'</code></span></label>
-          <div style="position:relative">
-            <textarea id="loadScheduleInput" rows="4" placeholder="Paste the RegisterSQL column here to pre-fill all steps for editing"></textarea>
-            <button onclick="loadSchedule()" style="position:absolute;right:8px;top:8px;background:var(--accent2,#5c6bc0);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:10px;font-weight:700;padding:5px 9px">Load ↓</button>
-          </div>
-          <div id="load-sched-msg" style="font-size:11px;margin-top:2px"></div>
         </div>
       </div>
 
@@ -661,57 +738,77 @@ select option{background:var(--s2)}
         </div>
       </div>
 
-      <!-- Email fields -->
-      <div id="dlv-email-fields" style="display:flex;flex-direction:column;gap:14px">
+      <!-- EMAIL GROUP (shown when delivery includes EMAIL) -->
+      <div class="ob-group" id="dlv-email-group" onclick="openDeliveryGroup('email')">
+        <div class="ob-group-header">✉ EMAIL<span class="ob-group-edit">&#9998;</span></div>
+        <div class="ob-group-row" id="dlv-email-row">
+          <div class="ob-group-row-label">TO — Email Recipient</div>
+          <div class="ob-group-row-val" id="dlv-email-tval"></div>
+        </div>
+        <div class="ob-group-row" id="dlv-subject-row">
+          <div class="ob-group-row-label">Subject</div>
+          <div class="ob-group-row-val" id="dlv-subject-tval"></div>
+        </div>
+        <div class="ob-group-row" id="dlv-body-row">
+          <div class="ob-group-row-label">Body</div>
+          <div class="ob-group-row-val" id="dlv-body-tval"></div>
+        </div>
+        <div class="ob-group-row" id="dlv-filename-row">
+          <div class="ob-group-row-label">Attachment Name</div>
+          <div class="ob-group-row-val" id="dlv-filename-tval"></div>
+        </div>
+        <div class="ob-group-row" id="dlv-rcp-row">
+          <div class="ob-group-row-label">Standing Recipients</div>
+          <div class="ob-group-row-val" id="dlv-rcp-tval"></div>
+        </div>
+        <div id="dlv-grp-email-vals" style="display:none"></div>
+      </div>
 
-        <!-- Email recipient resolver — full source options -->
+      <!-- FOLDER GROUP (shown when delivery includes FOLDER) -->
+      <div class="ob-group" id="dlv-folder-group" style="display:none" onclick="openDeliveryGroup('folder')">
+        <div class="ob-group-header">📁 FOLDER<span class="ob-group-edit">&#9998;</span></div>
+        <div class="ob-group-row">
+          <div class="ob-group-row-label">Folder Path</div>
+          <div class="ob-group-row-val" id="dlv-folder-tval"></div>
+        </div>
+        <div class="ob-group-row">
+          <div class="ob-group-row-label">File Name</div>
+          <div class="ob-group-row-val" id="dlv-foldername-tval"></div>
+        </div>
+        <div id="dlv-grp-folder-vals" style="display:none"></div>
+      </div>
+
+      <!-- ─── Hidden editor sections — DOM-moved to OB when triggered ─── -->
+
+      <div id="dlv-sec-email" style="display:none">
         <div class="dlv-section">
           <div class="dlv-label">✉ Combined Email Recipient</div>
           <div class="info" style="margin-bottom:8px">
-            Who receives the combined report? Can be a static address, resolved from a view or function, or a dynamic SQL query.<br>
+            Who receives the combined report? Use a static address or a Dynamic SQL query.<br>
             <span style="color:var(--muted);font-size:10px">For <strong>per-entity</strong> email addresses when using fan-out, configure those in Step 5.</span>
           </div>
-          <div class="source-grid">
-            <div class="field">
-              <label>Source</label>
-              <select id="dlv-esrc" onchange="onBulkSourceChange('dlv-esrc','dlv-eval','dlvemail')">
-                <option value="STATIC">Static — fixed address</option>
-                <option value="SCALAR_FN">Scalar Function</option>
-                <option value="LOOKUP_VIEW">Lookup View</option>
-                <option value="DYNAMIC_SQL">Dynamic SQL</option>
-              </select>
-            </div>
-            <div class="src-val show" id="dlv-eval">
-              <label id="dlv-eval-lbl">Email Address</label>
-              <div class="use-asis-wrap">
-                <input id="dlv-eval-inp" placeholder="reports@example.com" oninput="sync()"/>
-                <button class="use-asis-btn" onclick="useAsIs('dlv-eval-inp')" title="Use placeholder as-is">Use as-is</button>
-              </div>
-            </div>
-          </div>
-          <div id="dlv-esrc-hint" class="dyn-src-hint" style="display:none"></div>
+          <div id="dlv-email-field-editor"></div>
           <div id="rcp-validation" style="margin-top:6px;display:none"></div>
         </div>
+      </div>
 
-        <!-- Subject / Body -->
+      <div id="dlv-sec-subject" style="display:none">
         <div class="field">
           <label>Email Subject
             <span class="opt">({{REPORTNAME}}, date tokens, {{DISPLAYNAME}} when fan-out active)</span>
           </label>
-          <div class="use-asis-wrap">
-            <input id="subject" placeholder="{{REPORTNAME}} — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}" oninput="sync()"/>
-            <button class="use-asis-btn" onclick="useAsIs('subject')" title="Use placeholder as-is">Use as-is</button>
-          </div>
+          <div id="dlv-subject-field-editor"></div>
         </div>
-        <div class="field">
-          <label>Email Body <span class="opt">(tokens supported)</span></label>
-          <div class="use-asis-wrap">
-            <textarea id="body" rows="3" placeholder="Please find attached your report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}." oninput="sync()"></textarea>
-            <button class="use-asis-btn" onclick="useAsIs('body')" title="Use placeholder as-is">Use as-is</button>
-          </div>
-        </div>
+      </div>
 
-        <!-- CC / BCC static recipients -->
+      <div id="dlv-sec-body" style="display:none">
+        <div class="field">
+          <label>Email Body <span class="opt">(tokens supported — {{REPORTNAME}}, date tokens, {{DISPLAYNAME}} when fan-out active)</span></label>
+          <div id="dlv-body-field-editor"></div>
+        </div>
+      </div>
+
+      <div id="dlv-sec-rcp" style="display:none">
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--label);letter-spacing:.04em;display:block;margin-bottom:6px">
             CC / BCC Recipients
@@ -720,71 +817,30 @@ select option{background:var(--s2)}
           <div id="rcp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
           <button class="add-btn" onclick="addRecipient()">+ Add CC / BCC recipient</button>
         </div>
-
       </div>
 
-      <!-- Folder + Filename — shown when delivery includes folder drop -->
-      <div id="dlv-folder-fields" style="display:none;flex-direction:column;gap:14px">
-
-        <div class="info">
-          The <strong>Folder Path</strong> and <strong>File Name</strong> can each be static, resolved from a view or function, or driven by a SQL query.<br>
-          When fan-out is active in Step 5, you can also configure per-entity folder resolution there —
-          whatever you set here applies to the combined / bulk row.
-        </div>
-
-        <!-- Folder Path resolver -->
-        <div class="dlv-section">
-          <div class="dlv-label">📁 Folder Path</div>
-          <div class="source-grid">
-            <div class="field">
-              <label>Source</label>
-              <select id="bulk-fsrc" onchange="onBulkSourceChange('bulk-fsrc','bulk-fval','bulkfolder')">
-                <option value="STATIC">Static — same path every run</option>
-                <option value="SCALAR_FN">Scalar Function</option>
-                <option value="LOOKUP_VIEW">Lookup View</option>
-                <option value="DYNAMIC_SQL">Dynamic SQL</option>
-              </select>
-            </div>
-            <div class="src-val show" id="bulk-fval">
-              <label id="bulk-fval-lbl">Folder Path</label>
-              <div class="use-asis-wrap"><input id="bulk-fval-inp" placeholder="\\server\reports\monthly\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('bulk-fval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
-            </div>
-          </div>
-          <div id="bulk-fsrc-hint" class="dyn-src-hint" style="display:none"></div>
-          <div id="bulk-fval-validation" style="margin-top:4px;display:none"></div>
-        </div>
-
-        <!-- File Name resolver -->
+      <div id="dlv-sec-filename" style="display:none">
         <div class="dlv-section">
           <div class="dlv-label">📄 File Name <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — extension added automatically</span></div>
           <div class="info" style="margin-bottom:8px">
             Override the default filename. Leave blank to use the API default.<br>
             Supports <code>{{REPORTNAME}}</code>, <code>{{DISPLAYNAME}}</code> (fan-out only), and any date token e.g. <code>{{PREV_MONTH_END}}</code>.
           </div>
-          <div class="field" style="margin-bottom:6px">
-            <label>Template <span class="hint">no extension needed</span></label>
-            <div class="use-asis-wrap"><input id="staticFilename" placeholder="{{REPORTNAME}}_{{PREV_MONTH_END}}" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('staticFilename')" title="Copy placeholder text into field">Use as-is</button></div>
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin:0 0 8px">— or resolve from a source —</div>
-          <div class="source-grid">
-            <div class="field">
-              <label>Source</label>
-              <select id="bulk-fnsrc" onchange="onBulkSourceChange('bulk-fnsrc','bulk-fnval','bulkfilename')">
-                <option value="">— none (use template above) —</option>
-                <option value="STATIC">Static</option>
-                <option value="SCALAR_FN">Scalar Function</option>
-                <option value="LOOKUP_VIEW">Lookup View</option>
-                <option value="DYNAMIC_SQL">Dynamic SQL</option>
-              </select>
-            </div>
-            <div class="src-val" id="bulk-fnval">
-              <label id="bulk-fnval-lbl">Value</label>
-              <div class="use-asis-wrap"><input id="bulk-fnval-inp" placeholder="dbo.fn_GetReportName" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('bulk-fnval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
-            </div>
-          </div>
-          <div id="bulk-fnsrc-hint" class="dyn-src-hint" style="display:none"></div>
+          <div id="dlv-filename-field-editor"></div>
         </div>
+      </div>
 
+      <div id="dlv-sec-folder" style="display:none">
+        <div class="info" style="margin-bottom:8px">
+          The <strong>Folder Path</strong> can be static or driven by a SQL query.<br>
+          When fan-out is active in Step 5, you can also configure per-entity folder resolution there —
+          whatever you set here applies to the combined / bulk row.
+        </div>
+        <div class="dlv-section">
+          <div class="dlv-label">📁 Folder Path</div>
+          <div id="dlv-folder-field-editor"></div>
+          <div id="bulk-fval-validation" style="margin-top:4px;display:none"></div>
+        </div>
       </div>
 
       <div class="step-actions">
@@ -847,104 +903,120 @@ select option{background:var(--s2)}
           </select>
         </div>
 
-        <!-- Per-value resolver: email -->
-        <div id="fo-email-cfg" style="display:none">
+        <!-- Entity Label — always shown when fanout !== NONE -->
+        <div class="ob-group" id="fo-dn-group" onclick="openFanoutGroup('displayname')">
+          <div class="ob-group-header">🏷 ENTITY LABEL <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6;margin-left:4px">optional</span><span class="ob-group-edit">&#9998;</span></div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">Display Name</div>
+            <div class="ob-group-row-val" id="fo-dn-tval"></div>
+          </div>
+          <div id="fo-grp-dn-vals" style="display:none"></div>
+        </div>
+
+        <!-- Per-entity EMAIL GROUP -->
+        <div class="ob-group" id="fo-email-group" style="display:none" onclick="openFanoutGroup('email')">
+          <div class="ob-group-header">✉ PER-ENTITY EMAIL<span class="ob-group-edit">&#9998;</span></div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">TO — Email Resolver</div>
+            <div class="ob-group-row-val" id="fo-email-tval"></div>
+          </div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">Subject</div>
+            <div class="ob-group-row-val" id="fo-subject-tval"></div>
+          </div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">Body</div>
+            <div class="ob-group-row-val" id="fo-body-tval"></div>
+          </div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">Attachment Name</div>
+            <div class="ob-group-row-val" id="fo-fn-tval"></div>
+          </div>
+          <div id="fo-grp-email-vals" style="display:none"></div>
+        </div>
+
+        <!-- Per-entity FOLDER GROUP -->
+        <div class="ob-group" id="fo-folder-group" style="display:none" onclick="openFanoutGroup('folder')">
+          <div class="ob-group-header">📁 PER-ENTITY FOLDER<span class="ob-group-edit">&#9998;</span></div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">Folder Path</div>
+            <div class="ob-group-row-val" id="fo-folder-tval"></div>
+          </div>
+          <div class="ob-group-row">
+            <div class="ob-group-row-label">File Name</div>
+            <div class="ob-group-row-val" id="fo-foldername-tval"></div>
+          </div>
+          <div id="fo-grp-folder-vals" style="display:none"></div>
+        </div>
+
+        <!-- ─── Hidden editor sections — DOM-moved to OB when triggered ─── -->
+
+        <div id="fo-sec-email" style="display:none">
           <div class="dlv-section">
             <div class="dlv-label">✉ Email — resolve per value</div>
             <div class="info" style="margin-bottom:8px">
               For each fan-out value, how should we find the recipient's email address?<br>
-              <strong>Example:</strong> value <code>BRM001</code> → look up in <code>schdl.vw_BRMEmail</code> → returns <code>john@example.com</code>
+              <strong>Example:</strong> value <code>BRM001</code> → Dynamic SQL → returns <code>john@example.com</code>
             </div>
-            <div class="source-grid">
-              <div class="field">
-                <label>Source</label>
-                <select id="fo-esrc" onchange="onSourceChangeFull('fo-esrc','fo-eval')">
-                  <option value="STATIC">Static — same address for all</option>
-                  <option value="LOOKUP_VIEW">Lookup View</option>
-                  <option value="SCALAR_FN">Scalar Function</option>
-                  <option value="DYNAMIC_SQL">Dynamic SQL</option>
-                </select>
-              </div>
-              <div class="src-val show" id="fo-eval">
-                <label id="fo-eval-lbl">Address</label>
-                <div class="use-asis-wrap"><input id="fo-eval-inp" placeholder="bulk@example.com" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-eval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
-              </div>
-            </div>
-            <div id="fo-esrc-hint" class="dyn-src-hint" style="display:none"></div>
+            <div id="fo-email-field-editor"></div>
             <div id="fo-eval-validation" style="margin-top:4px;display:none"></div>
-            <div class="field">
-              <label>Combined / Bulk Email Address <span class="hint">used for combined row when mode is Individual + Combined</span></label>
-              <div class="use-asis-wrap"><input id="fo-bulk-email" placeholder="reports-combined@example.com" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-bulk-email')" title="Copy placeholder text into field">Use as-is</button></div>
-            </div>
           </div>
         </div>
 
-        <!-- Per-value resolver: folder -->
-        <div id="fo-folder-cfg" style="display:none">
+        <div id="fo-sec-subject" style="display:none">
+          <div class="field">
+            <label>Per-entity Subject
+              <span class="opt">(optional — leave blank to use Delivery subject)</span>
+            </label>
+            <div class="info" style="margin-bottom:6px">
+              Falls back to the Delivery subject if blank. Supports all tokens including <code>{{DISPLAYNAME}}</code>.
+            </div>
+            <div id="fo-subject-field-editor"></div>
+          </div>
+        </div>
+
+        <div id="fo-sec-body" style="display:none">
+          <div class="field">
+            <label>Per-entity Body
+              <span class="opt">(optional — leave blank to use Delivery body)</span>
+            </label>
+            <div class="info" style="margin-bottom:6px">
+              Falls back to the Delivery body if blank. Supports all tokens including <code>{{DISPLAYNAME}}</code>.
+            </div>
+            <div id="fo-body-field-editor"></div>
+          </div>
+        </div>
+
+        <div id="fo-sec-folder" style="display:none">
           <div class="dlv-section">
             <div class="dlv-label">📁 Folder — resolve per value</div>
             <div class="info" style="margin-bottom:8px">
               For each fan-out value, how should we find the destination folder path?<br>
-              <strong>Example:</strong> value <code>BRM001</code> → look up in <code>schdl.vw_BRMFolder</code> → returns <code>\\server\reports\BRM001\</code>
+              <strong>Example:</strong> value <code>BRM001</code> → Dynamic SQL → returns <code>\\server\reports\BRM001\</code>
             </div>
-            <div class="source-grid">
-              <div class="field">
-                <label>Source</label>
-                <select id="fo-fsrc" onchange="onSourceChangeFull('fo-fsrc','fo-fval')">
-                  <option value="STATIC">Static — same folder for all</option>
-                  <option value="LOOKUP_VIEW">Lookup View</option>
-                  <option value="SCALAR_FN">Scalar Function</option>
-                  <option value="DYNAMIC_SQL">Dynamic SQL</option>
-                </select>
-              </div>
-              <div class="src-val show" id="fo-fval">
-                <label id="fo-fval-lbl">Folder Path</label>
-                <div class="use-asis-wrap"><input id="fo-fval-inp" placeholder="\\server\reports\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-fval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
-              </div>
-            </div>
-            <div class="field">
-              <label>Combined Folder Path <span class="hint">used for combined row</span></label>
-              <div class="use-asis-wrap"><input id="fo-bulk-folder" placeholder="\\server\reports\combined\" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-bulk-folder')" title="Copy placeholder text into field">Use as-is</button></div>
-            </div>
+            <div id="fo-folder-field-editor"></div>
           </div>
         </div>
 
-        <!-- Entity label -->
-        <div class="dlv-section">
-          <div class="dlv-label">🏷 Entity Label <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — for filenames and email personalisation</span></div>
-          <div class="info" style="margin-bottom:8px">
-            The human-readable name for each fan-out value. Becomes <code>{{DISPLAYNAME}}</code> in filenames and email text.<br>
-            <strong>Example:</strong> value <code>BRM001</code> → Entity Label <code>John Smith</code> → filename <code>Report_John Smith_2026-05.xlsx</code>
-          </div>
-          <div id="fo-dnsrc-hint" class="dyn-src-hint" style="display:none"></div>
-        <div class="source-grid">
-            <div class="field">
-              <label>Source</label>
-              <select id="fo-dnsrc" onchange="onSourceChangeFull('fo-dnsrc','fo-dnval')">
-                <option value="">None — use raw value</option>
-                <option value="STATIC">Static</option>
-                <option value="LOOKUP_VIEW">Lookup View</option>
-                <option value="SCALAR_FN">Scalar Function</option>
-                <option value="DYNAMIC_SQL">Dynamic SQL</option>
-              </select>
+        <div id="fo-sec-displayname" style="display:none">
+          <div class="dlv-section">
+            <div class="dlv-label">🏷 Entity Label <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — for filenames and email personalisation</span></div>
+            <div class="info" style="margin-bottom:8px">
+              The human-readable name for each fan-out value. Becomes <code>{{DISPLAYNAME}}</code> in filenames and email text.<br>
+              <strong>Example:</strong> value <code>BRM001</code> → Dynamic SQL → Entity Label <code>John Smith</code>
             </div>
-            <div class="src-val" id="fo-dnval">
-              <label id="fo-dnval-lbl">Value</label>
-              <div class="use-asis-wrap"><input id="fo-dnval-inp" placeholder="schdl.vw_BRMDisplayName" oninput="sync()"/><button class="use-asis-btn" onclick="useAsIs('fo-dnval-inp')" title="Copy placeholder text into field">Use as-is</button></div>
-            </div>
+            <div id="fo-displayname-field-editor"></div>
           </div>
         </div>
 
-        <!-- File name -->
-        <div class="dlv-section">
-          <div class="dlv-label">📄 File Name Override <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — extension added automatically</span></div>
-          <div class="info" style="margin-bottom:8px">
-            Override the default filename for each report. Leave blank to use the API default.<br>
-            Supported placeholders: <code>{{DISPLAYNAME}}</code> &nbsp;<code>{{REPORTNAME}}</code> &nbsp;any date token e.g. <code>{{PREV_MONTH_END}}</code>
-          </div>
-          <div class="field">
-            <label>Filename Template <span class="hint">no extension needed — added from Output Format</span></label>
-            <input id="fo-fntemplate" placeholder="{{REPORTNAME}}_{{DISPLAYNAME}}_{{PREV_MONTH_END}}" oninput="sync()"/>
+        <div id="fo-sec-filename" style="display:none">
+          <div class="dlv-section">
+            <div class="dlv-label">📄 File Name Override <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:10px;margin-left:6px">optional — extension added automatically</span></div>
+            <div class="info" style="margin-bottom:8px">
+              Override the default filename for each report. Leave blank to use the API default.<br>
+              Supported placeholders: <code>{{DISPLAYNAME}}</code> &nbsp;<code>{{REPORTNAME}}</code> &nbsp;any date token e.g. <code>{{PREV_MONTH_END}}</code>
+            </div>
+            <div id="fo-filename-field-editor"></div>
           </div>
         </div>
 
@@ -968,77 +1040,25 @@ select option{background:var(--s2)}
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     Object Builder
     <span id="obj-count-badge" style="margin-left:8px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0;text-transform:none;display:none"></span>
-    <span id="obj-context" style="margin-left:6px;font-weight:400;text-transform:none;color:var(--muted);font-size:10px;letter-spacing:0">— select a source type in Step 5</span>
+    <span id="obj-context" style="margin-left:6px;font-weight:400;text-transform:none;color:var(--muted);font-size:10px;letter-spacing:0">— click a parameter or delivery field to edit</span>
   </div>
 
-  <div id="obj-empty" style="padding:20px 16px;color:var(--muted);font-size:12px;line-height:1.7">
-    When you choose <strong style="color:var(--text)">Lookup View</strong> or <strong style="color:var(--text)">Scalar Function</strong> as a source type in Step 5, this panel shows a ready-to-edit template for that object.<br><br>
-    Write or paste your code here, then toggle it into the SQL output below.
+  <!-- Field editor zone — shown when a param or delivery field is being edited -->
+  <div id="ob-field-zone" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div id="ob-breadcrumb" style="font-size:10px;color:var(--muted);padding:8px 14px 4px;flex-shrink:0;letter-spacing:0;text-transform:none;font-weight:400">Click a parameter or delivery section to edit here</div>
+    <div id="ob-tok-chips" style="display:none;padding:4px 12px 6px;flex-shrink:0;flex-direction:row;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)"></div>
+    <div id="ob-field-body" style="flex:1;overflow-y:auto;padding:12px 14px"></div>
   </div>
 
-  <div id="obj-content" style="display:none;flex-direction:column;height:100%">
-
-    <!-- Object tabs -->
-    <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0">
-      <button class="obj-tab active" id="otab-view"    onclick="setObjTab('view')">Lookup View</button>
-      <button class="obj-tab"        id="otab-fn"      onclick="setObjTab('fn')">Scalar Function</button>
-      <button class="obj-tab"        id="otab-dynhelp" onclick="setObjTab('dynhelp')">Dynamic SQL Help</button>
-    </div>
-
-    <!-- VIEW tab -->
-    <div id="otab-view-body" class="obj-tab-body active">
-      <div class="obj-contract">
-        <div class="obj-contract-title">Contract — columns this view must expose</div>
-        <div id="view-contract-cols" class="obj-contract-cols"></div>
-        <div class="obj-contract-note">The engine runs: <code>SELECT TOP 1 &lt;TargetColumn&gt; FROM &lt;view&gt; WHERE LookupKey = '&lt;value&gt;'</code></div>
-      </div>
-      <div style="padding:10px 12px 4px;display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <label style="font-size:11px;font-weight:600;color:var(--label)">View name</label>
-        <input id="obj-view-name" style="flex:1;font-size:11px;padding:5px 8px" placeholder="schdl.vw_BRMEmail" oninput="onObjNameChange()"/>
-      </div>
-      <textarea id="obj-view-sql" class="obj-editor" spellcheck="false" oninput="onObjCodeChange()"></textarea>
-      <div class="obj-footer">
-        <label class="obj-include-tog">
-          <input type="checkbox" id="obj-view-include" checked onchange="sync()"/>
-          <span>Include in SQL output</span>
-        </label>
-        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="copyObjSQL('view')">Copy object SQL</button>
-      </div>
-    </div>
-
-    <!-- FUNCTION tab -->
-    <div id="otab-fn-body" class="obj-tab-body">
-      <div class="obj-contract">
-        <div class="obj-contract-title">Contract — function signature required</div>
-        <div id="fn-contract-sig" class="obj-contract-cols"></div>
-        <div class="obj-contract-note">The engine runs: <code>SELECT @result = &lt;fn&gt;(@value)</code></div>
-      </div>
-      <div style="padding:10px 12px 4px;display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <label style="font-size:11px;font-weight:600;color:var(--label)">Function name</label>
-        <input id="obj-fn-name" style="flex:1;font-size:11px;padding:5px 8px" placeholder="dbo.fn_GetBRMEmail" oninput="onObjNameChange()"/>
-      </div>
-      <textarea id="obj-fn-sql" class="obj-editor" spellcheck="false" oninput="onObjCodeChange()"></textarea>
-      <div class="obj-footer">
-        <label class="obj-include-tog">
-          <input type="checkbox" id="obj-fn-include" checked onchange="sync()"/>
-          <span>Include in SQL output</span>
-        </label>
-        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="copyObjSQL('fn')">Copy object SQL</button>
-      </div>
-    </div>
-
-    <!-- DYNAMIC SQL HELP tab -->
-    <div id="otab-dynhelp-body" class="obj-tab-body" style="overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px">
-      <div class="obj-contract">
-        <div class="obj-contract-title">Dynamic SQL — no object needed</div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:4px">
-          Dynamic SQL is written inline in the source value field. Use <code style="color:var(--accent)">{VALUE}</code> as the placeholder — it is replaced with each fan-out value at runtime.
-        </div>
-      </div>
-      <div id="dyn-examples" style="display:flex;flex-direction:column;gap:10px"></div>
-    </div>
-
+  <div id="obj-empty" style="padding:24px 16px;color:var(--muted);font-size:12px;line-height:1.8">
+    <strong style="color:var(--text)">Object Builder</strong><br><br>
+    Click any parameter value, delivery section, or fan-out resolver in the
+    wizard to edit it here with full space.<br><br>
+    For <strong style="color:var(--text)">Lookup View</strong> or
+    <strong style="color:var(--text)">Scalar Function</strong> sources,
+    this panel also shows a ready-to-edit SQL template.
   </div>
+
 </div>
 
 <!-- ════════════ SQL PANEL ════════════ -->
@@ -1081,6 +1101,89 @@ let params = [], pidx = 0;
 let delivery = 'EMAIL';   // EMAIL | FOLDER | BOTH
 let fanout   = 'NONE';    // NONE | INDIVIDUAL | BOTH
 let schedNameEdited = false;  // true once user manually types in schedule name
+let activeOBParam = null;    // param id currently open in OB field zone, or null
+let activeOBType  = 'param'; // 'param' | 'delivery' | 'fanout'
+let activeObjField = null;
+
+// ── Recipient state (CC/BCC standing recipients) ──────────────────────────
+let rcpState = []; // [{role:'CC', email:'', includeInFanOut:false}, ...]
+
+function rcpAdd() {
+  rcpState.push({ role:'CC', email:'', includeInFanOut:false });
+  rcpRender();
+  sync();
+}
+
+function rcpSetRole(idx, val) {
+  if (rcpState[idx]) rcpState[idx].role = val;
+  sync();
+}
+
+function rcpSetEmail(idx, val) {
+  if (rcpState[idx]) rcpState[idx].email = val;
+  sync();
+}
+
+function rcpSetFanOut(idx, checked) {
+  if (rcpState[idx]) rcpState[idx].includeInFanOut = checked;
+  sync();
+}
+
+function rcpRemove(idx) {
+  rcpState.splice(idx, 1);
+  rcpRender();
+  sync();
+}
+
+function rcpRender() {
+  const el = document.getElementById('rcp-list-ob');
+  if (!el) return;
+  el.innerHTML = rcpState.map((r, i) =>
+    '<div class="rcp-row">' +
+    '<select onchange="rcpSetRole(' + i + ',this.value)">' +
+    '<option value="CC"'  + (r.role==='CC'  ? ' selected':'') + '>CC</option>' +
+    '<option value="BCC"' + (r.role==='BCC' ? ' selected':'') + '>BCC</option>' +
+    '</select>' +
+    '<input type="email" value="' + esc(r.email) + '" placeholder="email@example.com"' +
+    ' oninput="rcpSetEmail(' + i + ',this.value)"/>' +
+    '<label class="rcp-fanout-label"' + (r.includeInFanOut ? ' style=\"color:var(--accent)\"':'') + '>' +
+    '<input type="checkbox"' + (r.includeInFanOut ? ' checked':'') +
+    ' onchange="rcpSetFanOut(' + i + ',this.checked)"/> Fan-out</label>' +
+    '<button onclick="rcpRemove(' + i + ')" title="Remove">×</button>' +
+    '</div>'
+  ).join('');
+}   // unified OB field tracker: {key, secId?, open, close}
+
+// Per-field source/value state — replaces all source-selector selects
+const fieldState = {
+  'dlv-email':      { mode:'static', staticVal:'', dynamicVal:'' },
+  'dlv-subject':    { mode:'static', staticVal:'', dynamicVal:'' },
+  'dlv-body':       { mode:'static', staticVal:'', dynamicVal:'' },
+  'dlv-filename':   { mode:'static', staticVal:'', dynamicVal:'' },
+  'dlv-folder':     { mode:'static', staticVal:'', dynamicVal:'' },
+  'fo-email':       { mode:'static', staticVal:'', dynamicVal:'' },
+  'fo-subject':     { mode:'static', staticVal:'', dynamicVal:'' },
+  'fo-body':        { mode:'static', staticVal:'', dynamicVal:'' },
+  'fo-filename':    { mode:'parent', staticVal:'', dynamicVal:'' },
+  'fo-folder':      { mode:'parent', staticVal:'', dynamicVal:'' },
+  'fo-displayname': { mode:'static', staticVal:'', dynamicVal:'' },
+};
+
+function getFieldSource(key) {
+  const s = fieldState[key] || {};
+  const parentMap = { 'fo-filename':'dlv-filename','fo-folder':'dlv-folder',
+                       'fo-subject':'dlv-subject',  'fo-body':'dlv-body' };
+  if (s.mode === 'parent' && parentMap[key]) return getFieldSource(parentMap[key]);
+  return s.mode === 'dynamic' ? 'DYNAMIC_SQL' : 'STATIC';
+}
+
+function getFieldValue(key) {
+  const s = fieldState[key] || {};
+  const parentMap = { 'fo-filename':'dlv-filename','fo-folder':'dlv-folder',
+                       'fo-subject':'dlv-subject',  'fo-body':'dlv-body' };
+  if (s.mode === 'parent' && parentMap[key]) return getFieldValue(parentMap[key]);
+  return s.mode === 'dynamic' ? (s.dynamicVal || '') : (s.staticVal || '');
+}
 
 // ════════════════════════════════════════════════════════════
 //  STEP NAV
@@ -1158,11 +1261,15 @@ function setDelivery(d) {
   ['EMAIL','FOLDER','BOTH'].forEach(t => {
     document.getElementById('dt-'+t).classList.toggle('selected', t===d);
   });
-  document.getElementById('dlv-email-fields').style.display   = ['EMAIL','BOTH'].includes(d) ? 'flex' : 'none';
-  document.getElementById('dlv-folder-fields').style.display  = ['FOLDER','BOTH'].includes(d) ? 'flex' : 'none';
-
-  // Update fan-out config visibility
+  const showEmail  = ['EMAIL','BOTH'].includes(d);
+  const showFolder = ['FOLDER','BOTH'].includes(d);
+  const et = document.getElementById('dlv-email-group');
+  const ft = document.getElementById('dlv-folder-group');
+  if (et) et.style.display  = showEmail  ? '' : 'none';
+  if (ft) ft.style.display  = showFolder ? '' : 'none';
   updateFanoutDeliverySections();
+  updateAllTriggerSummaries();
+  updateGroupSummary();
   sync();
 }
 
@@ -1180,6 +1287,8 @@ function setFanout(f) {
     populateFanoutParamSelect();
     updateFanoutDeliverySections();
   }
+  updateAllTriggerSummaries();
+  updateGroupSummary();
   sync();
 }
 
@@ -1201,87 +1310,17 @@ function populateFanoutParamSelect() {
 
 function onFanoutParamChange() { sync(); }
 
-function onBulkSourceChange(selId, valId, context) {
-  const src = document.getElementById(selId).value;
-  const wrap = document.getElementById(valId);
-  const hintId = selId + '-hint';
-  const hintEl = document.getElementById(hintId);
-
-  // Show/hide value input
-  if (!src || src === '') {
-    wrap.classList.remove('show');
-  } else {
-    wrap.classList.add('show');
-    const info = SRC_LABELS[src] || { lbl:'Value', ph:'' };
-    const lbl = document.getElementById(valId + '-lbl');
-    const inp = document.getElementById(valId + '-inp');
-    if (lbl) lbl.textContent = info.lbl;
-    if (inp) inp.placeholder = info.ph;
-  }
-
-  // Show/hide context hint for DYNAMIC_SQL
-  if (hintEl) {
-    if (src === 'DYNAMIC_SQL') {
-      const cn = BULK_SOURCE_COLS[context] || { col:'Value', hint:'Must return the named column' };
-      hintEl.style.display = '';
-      hintEl.innerHTML =
-        '<strong>Dynamic SQL</strong> — write a <code>SELECT</code> with no <code>{VALUE}</code> placeholder needed.<br>' +
-        '<span style="color:var(--yellow)">' + cn.hint + '</span><br>' +
-        'Example: <code>SELECT \'value\' AS [' + cn.col + ']</code>';
-    } else {
-      hintEl.style.display = 'none';
-    }
-  }
-
-  // Trigger Object Builder for view/function types
-  const nameInputId = valId + '-inp';
-  const targetCtx = context === 'bulkfolder' ? 'folder' : 'displayname';
-  if (src === 'LOOKUP_VIEW' || src === 'SCALAR_FN') {
-    triggerObjectBuilder(targetCtx, src, nameInputId);
-  } else {
-    // Only clear object builder if it was previously triggered by this selector
-    if (objContext && objContext.nameInputId === nameInputId) {
-      document.getElementById('obj-empty').style.display = '';
-      document.getElementById('obj-content').style.display = 'none';
-      document.getElementById('obj-context').textContent = '— select a source type in Step 5';
-      objContext = null;
-    }
-  }
-
-  sync();
-}
 
 function updateFanoutDeliverySections() {
   const showEmail  = ['EMAIL','BOTH'].includes(delivery);
   const showFolder = ['FOLDER','BOTH'].includes(delivery);
-  const cfg = document.getElementById('fo-email-cfg');
-  const fcfg = document.getElementById('fo-folder-cfg');
-  if (cfg)  cfg.style.display  = showEmail  && fanout!=='NONE' ? 'block' : 'none';
-  if (fcfg) fcfg.style.display = showFolder && fanout!=='NONE' ? 'block' : 'none';
+  const active = fanout !== 'NONE';
+  const et = document.getElementById('fo-email-group');
+  const ft = document.getElementById('fo-folder-group');
+  if (et) et.style.display  = showEmail  && active ? '' : 'none';
+  if (ft) ft.style.display  = showFolder && active ? '' : 'none';
 }
 
-// ════════════════════════════════════════════════════════════
-//  SOURCE SELECTORS (generic)
-// ════════════════════════════════════════════════════════════
-const SRC_LABELS = {
-  STATIC: { lbl:'Value / Address', ph:'e.g. bulk@example.com or \\\\server\\reports\\' },
-  LOOKUP_VIEW: { lbl:'View name', ph:'schdl.vw_BRMEmail — must expose LookupKey, EmailAddress' },
-  SCALAR_FN:   { lbl:'Function name', ph:'dbo.fn_GetBrokerEmail' },
-  DYNAMIC_SQL: { lbl:'SQL (use {VALUE})', ph:"SELECT EmailAddress FROM dbo.BRM WHERE Code = '{VALUE}'" },
-};
-
-function onSourceChangeCore(selId, valId) {
-  const src = document.getElementById(selId).value;
-  const wrap = document.getElementById(valId);
-  if (!src || src==='') { wrap.classList.remove('show'); return; }
-  wrap.classList.add('show');
-  const info = SRC_LABELS[src] || { lbl:'Value', ph:'' };
-  const lbl = wrap.querySelector('[id$="-lbl"]');
-  const inp = wrap.querySelector('[id$="-inp"]');
-  if (lbl) lbl.textContent = info.lbl;
-  if (inp) inp.placeholder = info.ph;
-  sync();
-}
 
 // ════════════════════════════════════════════════════════════
 //  PARAMETERS
@@ -1345,22 +1384,22 @@ function renderParams() {
   params.forEach(p => area.appendChild(makeParamCard(p)));
   if (fanout!=='NONE') populateFanoutParamSelect();
   updateS3Summary();
+  renderRailSummaries();
 }
 
 function makeParamCard(p) {
   const wrap = document.createElement('div');
   wrap.className = 'param-card';
   wrap.id = 'pc-'+p.id;
-
   const tc = {string:'string',date:'date',int:'int'}[p.type]||'string';
-
   wrap.innerHTML = `
     <div class="param-head" onclick="toggleParamCard(${p.id})">
       <span class="param-name-text">${esc(p.name)||'(unnamed)'}</span>
       <span class="ptag ${tc}">${p.type}</span>
+      ${p.valueSource === 'dynamic' ? '<span class="ptag dynamic">dynamic</span>' : ''}
       <button class="param-remove" onclick="event.stopPropagation();removeParam(${p.id})">×</button>
     </div>
-    <div class="param-body" id="pb-${p.id}">
+    <div class="param-body open" id="pb-${p.id}">
       <div class="row c3">
         <div class="field" style="grid-column:1/3">
           <label>Parameter Name <span class="req">*</span></label>
@@ -1376,19 +1415,26 @@ function makeParamCard(p) {
           </select>
         </div>
       </div>
-      <div id="pval-${p.id}">${buildParamValSection(p)}</div>
-      <div class="row c2">
-        <div class="field">
-          <label>Required</label>
-          <select onchange="getP(${p.id}).required=this.value==='true';sync()">
-            <option value="true"  ${p.required ?'selected':''}>Required</option>
-            <option value="false" ${!p.required?'selected':''}>Optional</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Sort Order</label>
-          <input type="number" value="${p.sortOrder}" min="1"
-            onchange="getP(${p.id}).sortOrder=parseInt(this.value)||1;sync()"/>
+      <div class="ob-trigger" id="pvs-${p.id}" data-obj-key="param-${p.id}" onclick="toggleParamCard(${p.id})" style="margin-bottom:4px">
+        <div class="ob-trigger-label">Value <span>&#9998;</span></div>
+        <div class="ob-trigger-value empty" id="pvs-text-${p.id}">No value set</div>
+      </div>
+      <div id="pval-${p.id}" style="display:none">${buildParamValSection(p)}</div>
+      <div class="param-adv-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▾ Advanced':'⋯ Advanced'">⋯ Advanced</div>
+      <div class="param-adv-body">
+        <div class="row c2">
+          <div class="field">
+            <label>Required</label>
+            <select onchange="getP(${p.id}).required=this.value==='true';sync()">
+              <option value="true"  ${p.required ?'selected':''}>Required</option>
+              <option value="false" ${!p.required?'selected':''}>Optional</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Sort Order</label>
+            <input type="number" value="${p.sortOrder}" min="1"
+              onchange="getP(${p.id}).sortOrder=parseInt(this.value)||1;sync()"/>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1396,12 +1442,23 @@ function makeParamCard(p) {
 }
 
 function toggleParamCard(id) {
-  document.getElementById('pb-'+id).classList.toggle('open');
+  const body = document.getElementById('pb-'+id);
+  body.classList.add('open');
+  openInObjectBuilder({
+    key: 'param-' + id,
+    open: () => openParamValueInOB(id),
+    close: () => { _returnOBEditor(); body.classList.remove('open'); },
+  });
 }
 
 function refreshParamVal(id) {
-  document.getElementById('pval-'+id).innerHTML = buildParamValSection(getP(id));
+  const pvalEl = document.getElementById('pval-'+id);
+  // If currently in OB, close it first so the element is back in the card
+  if (activeOBParam === id) _returnOBEditor();
+  pvalEl.innerHTML = buildParamValSection(getP(id));
   document.getElementById('pb-'+id).classList.add('open');
+  const pvs = document.getElementById('pvs-text-'+id);
+  if (pvs) pvs.textContent = getParamValueSummary(getP(id));
 }
 
 function buildParamValSection(p) {
@@ -1573,22 +1630,21 @@ function addRecipient() {
   const row = document.createElement('div');
   row.className = 'rcp-row';
   row.innerHTML = `
-    <input placeholder="Display Name" oninput="sync()"/>
-    <input type="email" placeholder="email@example.com" oninput="sync()"/>
-    <select onchange="sync()">
-      <option value="TO">TO</option>
-      <option value="CC">CC</option>
+    <select onchange="sync();_refreshRcpListOB()">
+      <option value="CC" selected>CC</option>
       <option value="BCC">BCC</option>
     </select>
-    <button onclick="this.parentElement.remove();sync()" title="Remove">×</button>`;
+    <input type="email" placeholder="email@example.com" oninput="sync();_refreshRcpListOB()"/>
+    <label class="rcp-fanout-label">
+      <input type="checkbox" onchange="this.closest('label').classList.toggle('active',this.checked);sync();_refreshRcpListOB()"/>
+      Fan-out
+    </label>
+    <button onclick="this.parentElement.remove();sync();_refreshRcpListOB()" title="Remove">×</button>`;
   list.appendChild(row);
 }
 
 function getRecipients() {
-  return [...document.querySelectorAll('#rcp-list .rcp-row')].map(r=>{
-    const ins = r.querySelectorAll('input');
-    return { name:ins[0].value.trim(), email:ins[1].value.trim(), role:r.querySelector('select').value };
-  }).filter(r=>r.email);
+  return rcpState.filter(r => r.email && r.email.trim());
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1651,9 +1707,17 @@ function extractSqlParam(sql, paramName) {
   return null;
 }
 
+function toggleLoadPanel() {
+  const body = document.getElementById('load-panel-body');
+  const chevron = document.querySelector('.load-chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
 function loadSchedule() {
-  const raw = document.getElementById('loadScheduleInput').value;
-  const msg = document.getElementById('load-sched-msg');
+  const raw = document.getElementById('loadScheduleJson').value;
+  const msg = document.getElementById('load-msg');
   if (!raw.trim()) { msg.textContent = ''; return; }
 
   const fields = [];
@@ -1701,22 +1765,59 @@ function loadSchedule() {
   if (sDate)   document.getElementById('startDate').value = sDate;
   if (eDate)   document.getElementById('endDate').value   = eDate;
 
-  // Step 4 — Subject / Body
-  if (subj) { document.getElementById('subject').value = subj; fields.push('Subject'); }
-  if (body)   document.getElementById('body').value = body;
+  // Step 4 — Subject / Body (now in fieldState)
+  if (subj) {
+    fieldState['dlv-subject'] = { mode:'static', staticVal: subj, dynamicVal:'' };
+    fields.push('Subject');
+  }
+  if (body) {
+    fieldState['dlv-body'] = { mode:'static', staticVal: body, dynamicVal:'' };
+  }
 
   // Step 4 — Delivery (@DispatchJson)
   if (djStr) {
     try {
       const dj = JSON.parse(djStr);
       if (dj.deliveryMethod) { setDelivery(dj.deliveryMethod); fields.push('Delivery: ' + dj.deliveryMethod); }
-      if (dj.emailSource)      { document.getElementById('dlv-esrc').value = dj.emailSource; onBulkSourceChange('dlv-esrc','dlv-eval','dlvemail'); }
-      if (dj.emailSourceValue) { document.getElementById('dlv-eval-inp').value = dj.emailSourceValue; fields.push('Email source'); }
-      if (dj.folderSource)     { document.getElementById('bulk-fsrc').value = dj.folderSource; onBulkSourceChange('bulk-fsrc','bulk-fval','bulkfolder'); }
-      if (dj.folderSourceValue){ document.getElementById('bulk-fval-inp').value = dj.folderSourceValue; fields.push('Folder path'); }
-      if (dj.fileNameTemplate) { document.getElementById('staticFilename').value = dj.fileNameTemplate; fields.push('Filename template'); }
-      if (dj.fileNameSource)   { document.getElementById('bulk-fnsrc').value = dj.fileNameSource; onBulkSourceChange('bulk-fnsrc','bulk-fnval','bulkfilename'); }
-      if (dj.fileNameSourceValue) document.getElementById('bulk-fnval-inp').value = dj.fileNameSourceValue;
+      if (dj.emailSource) {
+        const isDyn = dj.emailSource === 'DYNAMIC_SQL';
+        fieldState['dlv-email'] = {
+          mode: isDyn ? 'dynamic' : 'static',
+          staticVal:  isDyn ? '' : (dj.emailSourceValue || ''),
+          dynamicVal: isDyn ? (dj.emailSourceValue || '') : '',
+        };
+        if (dj.emailSourceValue) fields.push('Email source');
+      }
+      if (dj.folderSource) {
+        const isDyn = dj.folderSource === 'DYNAMIC_SQL';
+        fieldState['dlv-folder'] = {
+          mode: isDyn ? 'dynamic' : 'static',
+          staticVal:  isDyn ? '' : (dj.folderSourceValue || ''),
+          dynamicVal: isDyn ? (dj.folderSourceValue || '') : '',
+        };
+        if (dj.folderSourceValue) fields.push('Folder path');
+      }
+      if (dj.fileNameSource || dj.fileNameTemplate) {
+        const fnVal = dj.fileNameSourceValue || dj.fileNameTemplate || '';
+        const fnMode = dj.fileNameSource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+        fieldState['dlv-filename'] = { mode: fnMode, staticVal: fnMode==='static'?fnVal:'', dynamicVal: fnMode==='dynamic'?fnVal:'' };
+        fields.push('Filename template');
+      } else if (dj.fileNameSource) {
+        const isDyn = dj.fileNameSource === 'DYNAMIC_SQL';
+        fieldState['dlv-filename'] = {
+          mode: isDyn ? 'dynamic' : 'static',
+          staticVal:  isDyn ? '' : (dj.fileNameSourceValue || ''),
+          dynamicVal: isDyn ? (dj.fileNameSourceValue || '') : '',
+        };
+      }
+      if (dj.subjectSource || dj.subjectSourceValue) {
+        const sMode = dj.subjectSource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+        fieldState['dlv-subject'] = { mode: sMode, staticVal: sMode==='static'?(dj.subjectSourceValue||''):'', dynamicVal: sMode==='dynamic'?(dj.subjectSourceValue||''):'' };
+      }
+      if (dj.bodySource || dj.bodySourceValue) {
+        const bMode = dj.bodySource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+        fieldState['dlv-body'] = { mode: bMode, staticVal: bMode==='static'?(dj.bodySourceValue||''):'', dynamicVal: bMode==='dynamic'?(dj.bodySourceValue||''):'' };
+      }
     } catch(e) { /* ignore */ }
   }
 
@@ -1752,13 +1853,47 @@ function loadSchedule() {
           const fo = pj[foIdx].fanOut;
           setFanout(foMode);
           document.getElementById('fo-param').value = String(params[foIdx].id);
-          if (fo.emailSource)            { document.getElementById('fo-esrc').value = fo.emailSource; onSourceChangeCore('fo-esrc','fo-eval'); }
-          if (fo.emailSourceValue)         document.getElementById('fo-eval-inp').value = fo.emailSourceValue;
-          if (fo.displayNameSource)      { document.getElementById('fo-dnsrc').value = fo.displayNameSource; onSourceChangeCore('fo-dnsrc','fo-dnval'); }
-          if (fo.displayNameSourceValue)   document.getElementById('fo-dnval-inp').value = fo.displayNameSourceValue;
-          if (fo.folderSource)           { document.getElementById('fo-fsrc').value = fo.folderSource; onSourceChangeCore('fo-fsrc','fo-fval'); }
-          if (fo.folderSourceValue)        document.getElementById('fo-fval-inp').value = fo.folderSourceValue;
-          if (fo.fileNameTemplate)         document.getElementById('fo-fntemplate').value = fo.fileNameTemplate;
+          if (fo.emailSource) {
+            const isDyn = fo.emailSource === 'DYNAMIC_SQL';
+            fieldState['fo-email'] = {
+              mode: isDyn ? 'dynamic' : 'static',
+              staticVal:  isDyn ? '' : (fo.emailSourceValue || ''),
+              dynamicVal: isDyn ? (fo.emailSourceValue || '') : '',
+            };
+          }
+          if (fo.displayNameSource) {
+            const isDyn = fo.displayNameSource === 'DYNAMIC_SQL';
+            fieldState['fo-displayname'] = {
+              mode: isDyn ? 'dynamic' : 'static',
+              staticVal:  isDyn ? '' : (fo.displayNameSourceValue || ''),
+              dynamicVal: isDyn ? (fo.displayNameSourceValue || '') : '',
+            };
+          }
+          if (fo.folderSource) {
+            const isDyn = fo.folderSource === 'DYNAMIC_SQL';
+            fieldState['fo-folder'] = {
+              mode: isDyn ? 'dynamic' : 'static',
+              staticVal:  isDyn ? '' : (fo.folderSourceValue || ''),
+              dynamicVal: isDyn ? (fo.folderSourceValue || '') : '',
+            };
+          }
+          if (fo.fileNameSource || fo.fileNameTemplate) {
+            const foFnVal = fo.fileNameSourceValue || fo.fileNameTemplate || '';
+            const foFnMode = fo.fileNameSource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+            fieldState['fo-filename'] = { mode: foFnMode, staticVal: foFnMode==='static'?foFnVal:'', dynamicVal: foFnMode==='dynamic'?foFnVal:'' };
+          }
+          if (fo.subjectTemplate) {
+            fieldState['fo-subject'] = { mode:'static', staticVal: fo.subjectTemplate, dynamicVal:'' };
+          } else if (fo.subjectSource || fo.subjectSourceValue || fo.subjectTemplate) {
+            const sVal = fo.subjectSourceValue || fo.subjectTemplate || '';
+            const sMode = fo.subjectSource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+            fieldState['fo-subject'] = { mode: sMode, staticVal: sMode==='static'?sVal:'', dynamicVal: sMode==='dynamic'?sVal:'' };
+          }
+          if (fo.bodySource || fo.bodySourceValue || fo.bodyTemplate) {
+            const bVal = fo.bodySourceValue || fo.bodyTemplate || '';
+            const bMode = fo.bodySource === 'DYNAMIC_SQL' ? 'dynamic' : 'static';
+            fieldState['fo-body'] = { mode: bMode, staticVal: bMode==='static'?bVal:'', dynamicVal: bMode==='dynamic'?bVal:'' };
+          }
           fields.push('Fan-out: ' + foMode);
         }
       }
@@ -1769,26 +1904,10 @@ function loadSchedule() {
   if (rjStr) {
     try {
       const rj = JSON.parse(rjStr);
-      const ccBcc = rj.filter(r => r.role !== 'TO');
-      if (ccBcc.length > 0) {
-        const list = document.getElementById('rcp-list');
-        list.innerHTML = '';
-        ccBcc.forEach(r => {
-          const row = document.createElement('div');
-          row.className = 'rcp-row';
-          row.innerHTML =
-            '<input placeholder="Display Name" value="' + esc(r.name||'') + '" oninput="sync()"/>' +
-            '<input type="email" placeholder="email@example.com" value="' + esc(r.email||'') + '" oninput="sync()"/>' +
-            '<select onchange="sync()">' +
-              '<option value="TO">TO</option>' +
-              '<option value="CC"' + (r.role==='CC'?' selected':'') + '>CC</option>' +
-              '<option value="BCC"' + (r.role==='BCC'?' selected':'') + '>BCC</option>' +
-            '</select>' +
-            '<button onclick="this.parentElement.remove();sync()" title="Remove">\xd7</button>';
-          list.appendChild(row);
-        });
-        fields.push('Recipients');
-      }
+      rcpState = rj
+        .filter(r => r.role !== 'TO' && r.email)
+        .map(r => ({ role: r.role || 'CC', email: r.email, includeInFanOut: r.includeInFanOut || false }));
+      if (rcpState.length > 0) fields.push('Recipients');
     } catch(e) { /* ignore */ }
   }
 
@@ -1843,6 +1962,7 @@ function syncCore() {
       : '{{DISPLAYNAME}} is only available when fan-out is active in Step 5';
   }
   updateS3Summary();
+  renderRailSummaries();
   const docName      = (document.getElementById('docName').value||'').trim();
   const outFmt       = document.getElementById('outputFormat').value;
   const language     = document.getElementById('language').value||1;
@@ -1857,29 +1977,27 @@ function syncCore() {
   const winEnd       = document.getElementById('winEnd').value;
   const startDate    = document.getElementById('startDate').value;
   const endDate      = document.getElementById('endDate').value;
-  const subject      = (document.getElementById('subject').value||'').trim();
-  const body         = (document.getElementById('body').value||'').trim();
-  const dlvEmailSrc  = document.getElementById('dlv-esrc')?.value || 'STATIC';
-  const dlvEmailVal  = (document.getElementById('dlv-eval-inp')?.value||'').trim();
-  const staticFilename = (document.getElementById('staticFilename')?.value||'').trim();
-  const bulkFSrc     = document.getElementById('bulk-fsrc')?.value || 'STATIC';
-  const bulkFVal     = (document.getElementById('bulk-fval-inp')?.value||'').trim();
-  const bulkFNSrc    = document.getElementById('bulk-fnsrc')?.value || '';
-  const bulkFNVal    = (document.getElementById('bulk-fnval-inp')?.value||'').trim();
-  // Keep staticFolder as alias for STATIC folder value
+  const subject      = getFieldSource('dlv-subject') === 'DYNAMIC_SQL' ? '' : getFieldValue('dlv-subject').trim();
+  const body         = getFieldSource('dlv-body')    === 'DYNAMIC_SQL' ? '' : getFieldValue('dlv-body').trim();
+  const dlvEmailSrc  = getFieldSource('dlv-email');
+  const dlvEmailVal  = getFieldValue('dlv-email').trim();
+  const staticFilename = getFieldSource('dlv-filename') === 'DYNAMIC_SQL' ? '' : getFieldValue('dlv-filename').trim();
+  const bulkFSrc     = getFieldSource('dlv-folder');
+  const bulkFVal     = getFieldValue('dlv-folder').trim();
+  const bulkFNSrc    = '';
+  const bulkFNVal    = '';
   const staticFolder = bulkFSrc === 'STATIC' ? bulkFVal : '';
 
   // Fan-out state
   const foParam   = document.getElementById('fo-param').value;
-  const foESrc    = document.getElementById('fo-esrc').value;
-  const foEVal    = document.getElementById('fo-eval-inp').value.trim();
-  const foBulkE   = document.getElementById('fo-bulk-email').value.trim();
-  const foFSrc    = document.getElementById('fo-fsrc').value;
-  const foFVal    = document.getElementById('fo-fval-inp').value.trim();
-  const foBulkF   = document.getElementById('fo-bulk-folder').value.trim();
-  const foDNSrc   = document.getElementById('fo-dnsrc').value;
-  const foDNVal   = document.getElementById('fo-dnval-inp').value.trim();
-  const foFNTmpl  = (document.getElementById('fo-fntemplate').value||'').trim();
+  const foESrc    = getFieldSource('fo-email');
+  const foEVal    = getFieldValue('fo-email').trim();
+  const foFSrc    = getFieldSource('fo-folder');
+  const foFVal    = getFieldValue('fo-folder').trim();
+  const foDNSrc   = getFieldValue('fo-displayname') ? getFieldSource('fo-displayname') : '';
+  const foDNVal   = getFieldValue('fo-displayname').trim();
+  const foFNSrc   = getFieldSource('fo-filename');
+  const foFNVal   = getFieldValue('fo-filename').trim();
   const ext       = '.'+outFmt;
 
   // Build parametersJson
@@ -1910,15 +2028,27 @@ function syncCore() {
       if (['EMAIL','BOTH'].includes(delivery)) {
         disp.emailSource = foESrc;
         disp.emailSourceValue = foEVal;
-        const bulkE = foBulkE || dlvEmailVal;
-        if (bulkE) disp.bulkEmail = bulkE;
       }
       if (['FOLDER','BOTH'].includes(delivery)) {
         if (foFSrc) { disp.folderSource = foFSrc; disp.folderSourceValue = foFVal; }
-        if (foBulkF) disp.bulkFolderPath = foBulkF;
       }
       if (foDNSrc) { disp.displayNameSource = foDNSrc; disp.displayNameSourceValue = foDNVal; }
-      if (foFNTmpl) { let fn = foFNTmpl.replace(/\.(xlsx|pdf|csv|xls|docx)$/i,''); disp.fileNameTemplate = fn+ext; }
+      if (foFNVal) {
+        disp.fileNameSource = foFNSrc;
+        disp.fileNameSourceValue = foFNVal;
+      }
+      const foSubjectSrc = getFieldSource('fo-subject');
+      const foSubjectVal = getFieldValue('fo-subject').trim();
+      if (foSubjectVal) {
+        disp.subjectSource = foSubjectSrc;
+        disp.subjectSourceValue = foSubjectVal;
+      }
+      const foBodySrc = getFieldSource('fo-body');
+      const foBodyVal = getFieldValue('fo-body').trim();
+      if (foBodyVal) {
+        disp.bodySource = foBodySrc;
+        disp.bodySourceValue = foBodyVal;
+      }
       obj.fanOut = disp;
 
     }
@@ -1947,8 +2077,7 @@ function syncCore() {
   }
   if (startDate) L.push(`    @StartDate       = '${startDate}',`);
   if (endDate)   L.push(`    @EndDate         = '${endDate}',`);
-  if (subject)   L.push(`    @Subject         = ${q(subject)},`);
-  if (body)      L.push(`    @BodyTemplate    = ${q(body)},`);
+  // Subject and Body go into @DispatchJson — not separate proc params
 
   // No-fanout dispatch config now handled directly in param loop above
 
@@ -1963,12 +2092,26 @@ function syncCore() {
     dispatchObj.folderSource = bulkFSrc;
     dispatchObj.folderSourceValue = bulkFVal;
   }
-  if (staticFilename) {
-    let fn = staticFilename.replace(/\.(xlsx|pdf|csv|xls|docx)$/i,'');
-    dispatchObj.fileNameTemplate = fn + ext;
-  } else if (bulkFNSrc && bulkFNVal) {
-    dispatchObj.fileNameSource = bulkFNSrc;
-    dispatchObj.fileNameSourceValue = bulkFNVal;
+  const dlvFilenameSrc = getFieldSource('dlv-filename');
+  const dlvFilenameVal = getFieldValue('dlv-filename').trim();
+  // FileName — Source/Value pattern only, no fileNameTemplate
+  if (dlvFilenameVal) {
+    dispatchObj.fileNameSource = dlvFilenameSrc;
+    dispatchObj.fileNameSourceValue = dlvFilenameVal;
+  }
+  // Subject — always goes into dispatchObj regardless of source
+  const dlvSubjectSrc = getFieldSource('dlv-subject');
+  const dlvSubjectVal = getFieldValue('dlv-subject').trim();
+  if (dlvSubjectVal) {
+    dispatchObj.subjectSource = dlvSubjectSrc;
+    dispatchObj.subjectSourceValue = dlvSubjectVal;
+  }
+  // Body — always goes into dispatchObj regardless of source
+  const dlvBodySrc = getFieldSource('dlv-body');
+  const dlvBodyVal = getFieldValue('dlv-body').trim();
+  if (dlvBodyVal) {
+    dispatchObj.bodySource = dlvBodySrc;
+    dispatchObj.bodySourceValue = dlvBodyVal;
   }
   const dj = JSON.stringify(dispatchObj, null, 4).replace(/'/g,"''");
   L.push(`    @DispatchJson    = N'${dj}',`);
@@ -1980,22 +2123,18 @@ function syncCore() {
     L.push(`    @ParametersJson  = NULL,`);
   }
 
-  // Recipients
+
+  // Standing Recipients — CC/BCC only, TO lives in @DispatchJson.emailSourceValue
   const rcps = getRecipients();
-  // Add the combined TO email from Step 4 if provided (STATIC only — others resolve at runtime)
-  let allRcps = [...rcps];
-  if (dlvEmailVal && dlvEmailSrc === 'STATIC' && ['EMAIL','BOTH'].includes(delivery)) {
-    // Only add as static recipient if not already in the list
-    if (!allRcps.some(r => r.email === dlvEmailVal && r.role === 'TO')) {
-      allRcps.unshift({ name:'', email: dlvEmailVal, role:'TO' });
-    }
-  }
-  if (allRcps.length>0) {
-    const rj = JSON.stringify(allRcps.map(r=>({name:r.name,email:r.email,role:r.role})),null,4).replace(/'/g,"''");
+  if (rcps.length > 0) {
+    const rj = JSON.stringify(rcps.map(r=>({email:r.email,role:r.role,includeInFanOut:r.includeInFanOut||false})),null,4).replace(/'/g,"''");
     L.push(`    @RecipientsJson  = N'${rj}';`);
   } else {
     L.push(`    @RecipientsJson  = NULL;`);
   }
+  
+  L.push(``);
+  L.push(`EXEC [schdl].[usp_TestDispatch] @ScheduleName = ${q(schedName)}`);
 
   const sql = L.join('\n').replace(/,\s*;/,';');
   document.getElementById('sql-out').innerHTML = highlight(sql);
@@ -2012,11 +2151,11 @@ function syncCore() {
   // Step 4: Email without fan-out must have at least one TO recipient
   const rcpVal = document.getElementById('rcp-validation');
   if (rcpVal) {
-    const emailVal = (document.getElementById('dlv-eval-inp')?.value||'').trim();
+    const emailVal = getFieldValue('dlv-email').trim();
     const needsEmail = ['EMAIL','BOTH'].includes(delivery);
     if (needsEmail && !emailVal) {
       rcpVal.style.display = '';
-      rcpVal.innerHTML = '<div class="val-error">A combined recipient email address is required — fill in the Email Recipient field above.</div>';
+      rcpVal.innerHTML = '<div class="val-error">A combined recipient email address is required — configure the Email Recipient field above.</div>';
     } else if (needsEmail && emailVal) {
       rcpVal.style.display = '';
       rcpVal.innerHTML = '<div class="val-ok">Combined email recipient configured.</div>';
@@ -2028,12 +2167,11 @@ function syncCore() {
   // Step 5: fan-out email source value must be filled when not NONE
   const foEvalVal = document.getElementById('fo-eval-validation');
   if (foEvalVal) {
-    const eSrc = document.getElementById('fo-esrc')?.value;
-    const eVal = (document.getElementById('fo-eval-inp')?.value||'').trim();
+    const eVal = getFieldValue('fo-email').trim();
     const needsEVal = fanout !== 'NONE' && ['EMAIL','BOTH'].includes(delivery);
-    if (needsEVal && eSrc && !eVal) {
+    if (needsEVal && !eVal) {
       foEvalVal.style.display = '';
-      foEvalVal.innerHTML = '<div class="val-error">Email source value is required — enter an address, view name, function, or SQL.</div>';
+      foEvalVal.innerHTML = '<div class="val-error">Email source value is required — enter a static address or Dynamic SQL query.</div>';
     } else {
       foEvalVal.style.display = 'none';
     }
@@ -2042,8 +2180,7 @@ function syncCore() {
   // Step 4: Folder delivery must have a folder path value
   const bulkFValEl = document.getElementById('bulk-fval-validation');
   if (bulkFValEl) {
-    const fSrc = document.getElementById('bulk-fsrc')?.value;
-    const fVal = (document.getElementById('bulk-fval-inp')?.value||'').trim();
+    const fVal = getFieldValue('dlv-folder').trim();
     const needsF = ['FOLDER','BOTH'].includes(delivery);
     if (needsF && !fVal) {
       bulkFValEl.style.display = '';
@@ -2101,7 +2238,8 @@ function renderToks(filter) {
       const g=document.createElement('div');g.className='tok-group';g.textContent=t.g;
       list.appendChild(g);lastG=t.g;
     }
-    const row=document.createElement('div');row.className='tok-row';row.title='Click to copy';
+    const row=document.createElement('div');row.className='tok-row';row.title='Click to copy';row.draggable=true;
+    row.ondragstart=e=>{e.dataTransfer.setData('text/plain',t.v);e.dataTransfer.effectAllowed='copy';};
     row.onclick=()=>copyTok(t.v,row);
     row.innerHTML=`<div><div class="tok-tok">${t.v}</div><div class="tok-desc">${t.d}</div></div>
       <button class="tok-copy" onclick="event.stopPropagation();copyTok('${t.v}',this)">Copy</button>`;
@@ -2142,177 +2280,12 @@ function useAsIs(id) {
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ════════════════════════════════════════════════════════════
-//  OBJECT BUILDER
+//  OBJECT BUILDER — inline editor system
 // ════════════════════════════════════════════════════════════
 
-// What the engine expects per resolver type, per target column
-const OBJ_CONTRACTS = {
-  email: {
-    view: { cols:[
-      {name:'LookupKey',    desc:'Matches the fan-out parameter value (e.g. BRM001)', required:true},
-      {name:'EmailAddress', desc:'Email address to send to for this value',           required:true},
-    ]},
-    fn:   { ret:'NVARCHAR(320)', retDesc:'Email address', param:'@Value NVARCHAR(500)' },
-  },
-  folder: {
-    view: { cols:[
-      {name:'LookupKey',  desc:'Matches the fan-out parameter value',              required:true},
-      {name:'FolderPath', desc:'Destination folder path for this value',           required:true},
-    ]},
-    fn:   { ret:'NVARCHAR(1000)', retDesc:'Folder path', param:'@Value NVARCHAR(500)' },
-  },
-  displayname: {
-    view: { cols:[
-      {name:'LookupKey',   desc:'Matches the fan-out parameter value',            required:true},
-      {name:'DisplayName', desc:'Human-readable label (used in {{DISPLAYNAME}})',   required:true},
-    ]},
-    fn:   { ret:'NVARCHAR(500)', retDesc:'Display name / entity label', param:'@Value NVARCHAR(500)' },
-  },
-};
-
-// Which source selector last triggered the object builder
-let objContext = null; // {type:'view'|'fn', target:'email'|'folder'|'displayname', nameInputId, srcSelId}
-let objTab = 'view';
-
-// Called by source selectors when LOOKUP_VIEW or SCALAR_FN is chosen
-function triggerObjectBuilder(target, srcType, nameInputId) {
-  if (srcType !== 'LOOKUP_VIEW' && srcType !== 'SCALAR_FN') {
-    // Non-object source — hide panel
-    document.getElementById('obj-empty').style.display = '';
-    document.getElementById('obj-content').style.display = 'none';
-    document.getElementById('obj-context').textContent = '— select a source type in Step 5';
-    objContext = null;
-    return;
-  }
-
-  objContext = { target, srcType, nameInputId };
-  document.getElementById('obj-empty').style.display = 'none';
-  document.getElementById('obj-content').style.display = 'flex';
-
-  const tab = srcType === 'LOOKUP_VIEW' ? 'view' : 'fn';
-  setObjTab(tab);
-  updateObjContract(target, tab);
-
-  // Pre-populate the object name from whatever is typed in the Step 5 source value field
-  if (nameInputId) {
-    const stepVal = (document.getElementById(nameInputId)?.value||'').trim();
-    if (stepVal) {
-      const nameField = document.getElementById(tab==='view' ? 'obj-view-name' : 'obj-fn-name');
-      if (nameField && !nameField.value) nameField.value = stepVal;
-    }
-  }
-
-  prefillObjTemplate(target, tab);
-
-  const targetLabels = {email:'Email',folder:'Folder Path',displayname:'Entity Label'};
-  document.getElementById('obj-context').textContent =
-    '— ' + targetLabels[target] + ' (' + (tab==='view' ? 'Lookup View' : 'Scalar Function') + ')';
-  // Update included count badge
-  updateObjCount();
-}
-
-function setObjTab(tab) {
-  // Save current tab's content before switching
-  saveCurrentObj();
-  objTab = tab;
-  ['view','fn','dynhelp'].forEach(t => {
-    document.getElementById('otab-'+t).classList.toggle('active', t===tab);
-    document.getElementById('otab-'+t+'-body').classList.toggle('active', t===tab);
-  });
-  if (objContext && tab!=='dynhelp') {
-    updateObjContract(objContext.target, tab);
-    // Restore previously saved content for this tab+target, or prefill template
-    restoreObj(objContext.target, tab);
-    prefillObjTemplate(objContext.target, tab);
-  }
-  if (tab==='dynhelp') renderDynExamples();
-  sync();
-}
-
-function updateObjContract(target, tab) {
-  const contract = OBJ_CONTRACTS[target];
-  if (!contract) return;
-  if (tab==='view') {
-    const el = document.getElementById('view-contract-cols');
-    el.innerHTML = contract.view.cols.map(c =>
-      '<div class="obj-col-row"><span class="obj-col-name">'+c.name+'</span><span class="obj-col-desc">'+c.desc+(c.required?' <em style="color:var(--red)">required</em>':'')+'</span></div>'
-    ).join('');
-  } else if (tab==='fn') {
-    const el = document.getElementById('fn-contract-sig');
-    const c = contract.fn;
-    el.innerHTML =
-      '<div class="obj-col-row"><span class="obj-col-name">Parameter</span><span class="obj-col-desc">'+c.param+'</span></div>' +
-      '<div class="obj-col-row"><span class="obj-col-name">Returns</span><span class="obj-col-desc">'+c.ret+' — '+c.retDesc+'</span></div>';
-  }
-}
-
-function prefillObjTemplate(target, tab) {
-  const schemaName = 'schdl';
-  const fnSchema   = 'dbo';
-  const targetNames = {email:'BRMEmail',folder:'BRMFolderPath',displayname:'BRMDisplayName'};
-  const tname = targetNames[target]||'Entity';
-
-  const colMap = {
-    email:       {col:'EmailAddress',  src:'sEmailAddress',  tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
-    folder:      {col:'FolderPath',    src:'sReportFolder',  tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
-    displayname: {col:'DisplayName',   src:'sFullName',      tbl:'dbo.BrokerRelationshipManager', key:'sBRMCode'},
-  };
-  const cm = colMap[target]||colMap.email;
-
-  if (tab==='view') {
-    const vname = document.getElementById('obj-view-name').value || schemaName+'.vw_'+tname;
-    const sql =
-`CREATE OR ALTER VIEW ${vname}
-AS
-    SELECT
-        ${cm.key}     AS LookupKey,      -- must match your fan-out parameter values
-        ${cm.src}     AS ${cm.col}
-    FROM ${cm.tbl}
-    WHERE bActive = 1;`;
-    if (!document.getElementById('obj-view-sql').value)
-      document.getElementById('obj-view-sql').value = sql;
-  } else if (tab==='fn') {
-    const fname = document.getElementById('obj-fn-name').value || fnSchema+'.fn_Get'+tname;
-    const retType = OBJ_CONTRACTS[target].fn.ret;
-    const sql =
-`CREATE OR ALTER FUNCTION ${fname}
-(
-    @Value NVARCHAR(500)
-)
-RETURNS ${retType}
-AS
-BEGIN
-    DECLARE @Result ${retType};
-
-    SELECT TOP 1 @Result = ${cm.src}
-    FROM   ${cm.tbl}
-    WHERE  ${cm.key} = @Value
-      AND  bActive   = 1;
-
-    RETURN @Result;
-END;`;
-    if (!document.getElementById('obj-fn-sql').value)
-      document.getElementById('obj-fn-sql').value = sql;
-  }
-}
-
-function onObjNameChange() {
-  // Update the source value input in Step 5 to match what's typed
-  if (!objContext) return;
-  const isView = objTab === 'view';
-  const name = document.getElementById(isView ? 'obj-view-name' : 'obj-fn-name').value.trim();
-  if (objContext.nameInputId) {
-    const inp = document.getElementById(objContext.nameInputId);
-    if (inp) inp.value = name;
-  }
-  // Refresh template to use new name (only if template is still default / empty)
-  sync();
-}
-
-function onObjCodeChange() { saveCurrentObj(); updateObjCount(); sync(); }
+const objStore = {};
 
 function updateObjCount() {
-  saveCurrentObj();
   const count = Object.values(objStore).filter(o => o.include && o.sql && o.sql.trim()).length;
   const badge = document.getElementById('obj-count-badge');
   if (badge) {
@@ -2321,154 +2294,378 @@ function updateObjCount() {
   }
 }
 
-function copyObjSQL(type) {
-  const sql = document.getElementById('obj-'+type+'-sql').value;
-  navigator.clipboard.writeText(sql).catch(()=>{});
-  const t = document.getElementById('toast');
-  t.textContent='Object SQL copied ✓';t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
-}
-
-// Persist object SQL across tab switches so multiple objects can be included
-const objStore = {};  // { 'email:view': {name,sql,include}, 'folder:fn': {...}, ... }
-
-function saveCurrentObj() {
-  if (!objContext) return;
-  const key = objContext.target + ':' + objTab;
-  if (objTab === 'view') {
-    objStore[key] = {
-      name:    document.getElementById('obj-view-name')?.value||'',
-      sql:     document.getElementById('obj-view-sql')?.value||'',
-      include: document.getElementById('obj-view-include')?.checked!==false,
-      tab:     'view', target: objContext.target,
-    };
-  } else if (objTab === 'fn') {
-    objStore[key] = {
-      name:    document.getElementById('obj-fn-name')?.value||'',
-      sql:     document.getElementById('obj-fn-sql')?.value||'',
-      include: document.getElementById('obj-fn-include')?.checked!==false,
-      tab:     'fn', target: objContext.target,
-    };
-  }
-}
-
-function restoreObj(target, tab) {
-  const key = target + ':' + tab;
-  const stored = objStore[key];
-  if (!stored) return;
-  if (tab === 'view') {
-    const n = document.getElementById('obj-view-name');
-    const s = document.getElementById('obj-view-sql');
-    const i = document.getElementById('obj-view-include');
-    if (n && stored.name) n.value = stored.name;
-    if (s && stored.sql)  s.value = stored.sql;
-    if (i) i.checked = stored.include;
-  } else if (tab === 'fn') {
-    const n = document.getElementById('obj-fn-name');
-    const s = document.getElementById('obj-fn-sql');
-    const i = document.getElementById('obj-fn-include');
-    if (n && stored.name) n.value = stored.name;
-    if (s && stored.sql)  s.value = stored.sql;
-    if (i) i.checked = stored.include;
-  }
-}
-
 function getObjSQL() {
-  // Save current state before collecting
-  saveCurrentObj();
   const parts = [];
-  Object.values(objStore).forEach(o => {
+  Object.entries(objStore).forEach(([key, o]) => {
     if (o.include && o.sql && o.sql.trim()) {
-      parts.push('-- ' + (o.tab==='view'?'View':'Function') + ': ' + (o.name||'unnamed') + '\n' + o.sql.trim() + '\nGO');
+      const label = o.tab === 'view' ? 'View' : 'Function';
+      const name  = o.name || o.selId || 'unnamed';
+      parts.push('-- ' + label + ': ' + name + '\n' + o.sql.trim() + '\nGO');
     }
   });
   return parts.join('\n\n');
 }
 
-const DYN_EXAMPLES = [
-  {
-    title: 'Email address from a table',
-    desc: 'Resolve an email address directly from your entity table using the parameter value as the key.',
-    sql: "SELECT sEmailAddress AS EmailAddress FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}' AND bActive = 1",
-  },
-  {
-    title: 'Folder path from a table',
-    desc: 'Resolve a folder destination per entity.',
-    sql: "SELECT sReportFolder AS FolderPath FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'",
-  },
-  {
-    title: 'Display name / entity label',
-    desc: 'Resolve a human-readable name to use in filenames and email subjects.',
-    sql: "SELECT sFullName AS DisplayName FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'",
-  },
-  {
-    title: 'Numeric key (cast required)',
-    desc: 'When your parameter value is a number stored as a string, cast it before comparing.',
-    sql: "SELECT sContactEmail AS EmailAddress FROM dbo.Administrator WHERE iAdminID = CAST('{VALUE}' AS INT) AND bEnabled = 1",
-  },
-  {
-    title: 'Join across tables',
-    desc: 'When the email lives in a related table.',
-    sql: "SELECT b.sEmail AS EmailAddress FROM dbo.BrokerBranch bb JOIN dbo.Broker b ON b.iBrokerID = bb.iBrokerID WHERE bb.iBranchCode = '{VALUE}' AND bb.bActive = 1",
-  },
-];
+// ════════════════════════════════════════════════════════════
+//  FIELD EDITOR — Static | Dynamic SQL two-tab pattern
+// ════════════════════════════════════════════════════════════
 
-function renderDynExamples() {
-  const el = document.getElementById('dyn-examples');
-  if (!el) return;
-  el.innerHTML = DYN_EXAMPLES.map((ex,i) => `
-    <div class="dyn-example">
-      <div class="dyn-example-title">${ex.title}</div>
-      <div class="dyn-example-desc">${ex.desc}</div>
-      <pre id="dex-${i}">${esc(ex.sql)}</pre>
-      <button class="dyn-example-copy" onclick="copyTok(document.getElementById('dex-${i}').textContent,this)">Copy SQL</button>
-    </div>`).join('');
+const FIELD_ALIASES = {
+  'dlv-email':      'EmailAddress',
+  'dlv-subject':    'Subject',
+  'dlv-body':       'Body',
+  'dlv-filename':   'FileName',
+  'dlv-folder':     'FolderPath',
+  'fo-email':       'EmailAddress',
+  'fo-subject':     'Subject',
+  'fo-body':        'Body',
+  'fo-filename':    'FileName',
+  'fo-folder':      'FolderPath',
+  'fo-displayname': 'DisplayName',
+};
+
+function getStaticPlaceholder(key) {
+  const map = {
+    'dlv-email':      'reports@example.com',
+    'dlv-subject':    '{{REPORTNAME}} — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}',
+    'dlv-body':       'Please find attached your report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.',
+    'dlv-filename':   '{{REPORTNAME}}_{{PREV_MONTH_END}}',
+    'dlv-folder':     '\\\\server\\reports\\monthly\\',
+    'fo-email':       'static@example.com or use Dynamic SQL for per-entity',
+    'fo-subject':     'Leave blank to use Delivery subject',
+    'fo-body':        'Leave blank to use Delivery body',
+    'fo-filename':    '{{REPORTNAME}}_{{DISPLAYNAME}}_{{PREV_MONTH_END}}',
+    'fo-folder':      '\\\\server\\reports\\{VALUE}\\',
+    'fo-displayname': 'static label or use Dynamic SQL per entity',
+  };
+  return map[key] || '';
 }
 
-// ════════════════════════════════════════════════════════════
-//  FULL onSourceChange — core + object builder trigger
-// ════════════════════════════════════════════════════════════
-// Column name the engine expects per resolver target
-const BULK_SOURCE_COLS = {
-  bulkfolder:   { col:'FolderPath', hint:'Must return a column named [FolderPath] — no {VALUE} needed for combined delivery' },
-  bulkfilename: { col:'FileName',   hint:'Must return a column named [FileName] — no {VALUE} needed for combined delivery' },
-  dlvemail:     { col:'EmailAddress', hint:'Must return a column named [EmailAddress] — no {VALUE} needed for combined delivery' },
-};
+function buildFieldEditor(key, label, required, isFanout) {
+  // Use 'parent' as default for fan-out fields that support it
+  const _parentDefault = (key==='fo-filename'||key==='fo-folder'||key==='fo-subject'||key==='fo-body');
+  if (!fieldState[key]) fieldState[key] = { mode: _parentDefault ? 'parent' : 'static', staticVal:'', dynamicVal:'' };
+  // fo-filename and fo-folder support a third 'parent' mode
+  const supportsParent = isFanout && (key === 'fo-filename' || key === 'fo-folder' ||
+                         key === 'fo-subject' || key === 'fo-body');
+  const state     = fieldState[key];
+  const alias     = FIELD_ALIASES[key] || 'Value';
+  const isBody    = key.endsWith('-body');
+  const isDynamic = state.mode === 'dynamic';
+  const isParent  = state.mode === 'parent';
+  const valueHint = isFanout
+    ? 'Use <code>{VALUE}</code> as the placeholder for the fan-out value.'
+    : 'Write a SELECT statement — the engine runs this once per delivery.';
+  const exampleVal = isFanout ? '{VALUE}' : '1';
 
-const DYN_COL_NAMES = {
-  email:       { col:'EmailAddress',  hint:'Must return a column named [EmailAddress]' },
-  folder:      { col:'FolderPath',    hint:'Must return a column named [FolderPath]' },
-  displayname: { col:'DisplayName',   hint:'Must return a column named [DisplayName]' },
-};
+  const staticWrap = isBody
+    ? '<textarea id="' + key + '-static-inp" rows="4"' +
+      ' oninput="updateFieldState(\'' + key + '\',\'static\',this.value)"' +
+      ' placeholder="' + esc(getStaticPlaceholder(key)) + '"' +
+      '>' + esc(state.staticVal) + '</textarea>'
+    : '<input id="' + key + '-static-inp"' +
+      ' oninput="updateFieldState(\'' + key + '\',\'static\',this.value)"' +
+      ' value="' + esc(state.staticVal) + '"' +
+      ' placeholder="' + esc(getStaticPlaceholder(key)) + '"/>';
 
-function onSourceChangeFull(selId, valId) {
-  onSourceChangeCore(selId, valId);
-  const src = document.getElementById(selId).value;
-  const targetMap = {
-    'fo-esrc':  { target:'email',       nameInputId:'fo-eval-inp',  hintId:'fo-esrc-hint'  },
-    'fo-fsrc':  { target:'folder',      nameInputId:'fo-fval-inp',  hintId:'fo-fsrc-hint'  },
-    'fo-dnsrc': { target:'displayname', nameInputId:'fo-dnval-inp', hintId:'fo-dnsrc-hint' },
-  };
-  const info = targetMap[selId];
-  if (!info) return;
+  // Parent value label (what delivery field this inherits from)
+  const parentKey = { 'fo-filename':'dlv-filename','fo-folder':'dlv-folder',
+                       'fo-subject':'dlv-subject',  'fo-body':'dlv-body' }[key];
+  const parentVal = parentKey ? getFieldValue(parentKey).trim() : '';
+  const parentSrc = parentKey ? getFieldSource(parentKey) : '';
 
-  // Show/hide context hint
-  const hintEl = document.getElementById(info.hintId);
-  if (hintEl) {
-    if (src === 'DYNAMIC_SQL') {
-      const cn = DYN_COL_NAMES[info.target];
-      hintEl.style.display = '';
-      hintEl.innerHTML =
-        '<strong>Dynamic SQL</strong> — write a <code>SELECT</code> using <code>{VALUE}</code> as the placeholder for the fan-out value.<br>' +
-        '<span style="color:var(--yellow)">' + cn.hint + '</span><br>' +
-        'Example: <code>SELECT ' + cn.col + ' FROM dbo.MyTable WHERE Code = &#39;{VALUE}&#39;</code>';
+  return (
+    '<div class="field-editor" data-key="' + key + '">' +
+    '<div class="vsource-tabs"' + (supportsParent ? ' style="grid-template-columns:1fr 1fr 1fr"' : '') + '>' +
+    (supportsParent
+      ? '<button class="vstab ' + (isParent ? 'on' : '') + '"' +
+        ' onclick="setFieldMode(\'' + key + '\',\'parent\')">Use from Delivery</button>'
+      : '') +
+    '<button class="vstab ' + (!isDynamic && !isParent ? 'on' : '') + '"' +
+    ' onclick="setFieldMode(\'' + key + '\',\'static\')">Static</button>' +
+    '<button class="vstab ' + (isDynamic ? 'on dynamic' : 'dynamic') + '"' +
+    ' onclick="setFieldMode(\'' + key + '\',\'dynamic\')">Dynamic SQL</button>' +
+    '</div>' +
+    // Parent mode panel
+    (supportsParent
+      ? '<div id="' + key + '-parent-wrap"' + (!isParent ? ' style="display:none"' : '') + '>' +
+        '<div class="info" style="margin-top:6px">' +
+        'Uses the value configured in Delivery' +
+        (parentVal ? ': <code>' + esc(parentSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : parentVal) + '</code>' : ' (not yet configured).') +
+        '</div>' +
+        // Inline overwrite warning when BOTH fo-folder and fo-filename are parent
+        // overwrite warning handled by #fo-overwrite-warn div below +
+        '</div>'
+      : '') +
+    '<div id="' + key + '-static-wrap"' + (isDynamic || isParent ? ' style="display:none"' : '') + '>' +
+    staticWrap +
+    '</div>' +
+    '<div id="' + key + '-dynamic-wrap"' + (!isDynamic ? ' style="display:none"' : '') + '>' +
+    '<div class="dyn-query-hint">' +
+    '<strong>Dynamic SQL</strong> — write a SELECT returning <code>[' + alias + ']</code>.<br>' +
+    valueHint + '<br>' +
+    'Example: <code>SELECT ' + alias + ' FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'</code>' +
+    '</div>' +
+    '<textarea id="' + key + '-dynamic-inp" rows="6"' +
+    ' style="font-family:var(--mono);font-size:11px;width:100%"' +
+    ' oninput="updateFieldState(\'' + key + '\',\'dynamic\',this.value);validateDynSQL(\'' + key + '\')"' +
+    ' placeholder="SELECT ' + alias + ' FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'"' +
+    '>' + esc(state.dynamicVal) + '</textarea>' +
+    '<div id="' + key + '-sql-error" class="val-error" style="display:none;margin-top:6px">' +
+    'SQL must contain a column aliased as [' + alias + '] or named ' + alias + '.' +
+    '</div>' +
+    '</div>' +
+    '</div>'
+  );
+}
+
+function setFieldMode(key, mode) {
+  if (!fieldState[key]) fieldState[key] = { mode:'static', staticVal:'', dynamicVal:'' };
+  fieldState[key].mode = mode;
+  const parentWrap  = document.getElementById(key + '-parent-wrap');
+  const staticWrap  = document.getElementById(key + '-static-wrap');
+  const dynamicWrap = document.getElementById(key + '-dynamic-wrap');
+  // Always hide all, then show only the active one
+  if (parentWrap)  parentWrap.style.display  = 'none';
+  if (staticWrap)  staticWrap.style.display  = 'none';
+  if (dynamicWrap) dynamicWrap.style.display = 'none';
+  const activeWrap = mode === 'parent'  ? parentWrap
+                   : mode === 'dynamic' ? dynamicWrap
+                   : staticWrap;
+  if (activeWrap) activeWrap.style.display = '';
+  const editor = document.querySelector('[data-key="' + key + '"]');
+  if (editor) {
+    const tabs = editor.querySelectorAll('.vstab');
+    // tabs may be: [parent, static, dynamic] or [static, dynamic]
+    const hasParent = tabs.length === 3;
+    if (hasParent) {
+      tabs[0].classList.toggle('on', mode === 'parent');
+      tabs[1].classList.toggle('on', mode === 'static');
+      tabs[2].classList.toggle('on', mode === 'dynamic');
+      tabs[2].classList.toggle('dynamic', mode === 'dynamic');
     } else {
-      hintEl.style.display = 'none';
+      if (tabs[0]) tabs[0].classList.toggle('on', mode === 'static');
+      if (tabs[1]) { tabs[1].classList.toggle('on', mode === 'dynamic'); tabs[1].classList.toggle('dynamic', mode === 'dynamic'); }
+    }
+    // Re-render the group whenever folder/filename mode changes
+    // so the cross-field overwrite warning recalculates correctly
+    if (key === 'fo-folder' || key === 'fo-filename') {
+      const obBody = document.getElementById('ob-field-body');
+      if (obBody && editor && obBody.contains(editor)) {
+        setTimeout(() => {
+          obBody.innerHTML = buildFanoutGroupContent('folder');
+          wireTokenDrop(obBody);
+          updateOverwriteWarn();
+        }, 0);
+        sync();
+        return; // skip sync+warn below — setTimeout handles it
+      }
     }
   }
-
-  triggerObjectBuilder(info.target, src, info.nameInputId);
+  sync();
+  updateOverwriteWarn();
 }
+
+function updateFieldState(key, mode, val) {
+  if (!fieldState[key]) fieldState[key] = { mode:'static', staticVal:'', dynamicVal:'' };
+  if (mode === 'static')  fieldState[key].staticVal  = val;
+  if (mode === 'dynamic') fieldState[key].dynamicVal = val;
+  sync();
+}
+
+const _debouncedValidate = {};
+
+function validateDynSQL(key) {
+  clearTimeout(_debouncedValidate[key]);
+  _debouncedValidate[key] = setTimeout(() => _runValidateDynSQL(key), 400);
+}
+
+function _runValidateDynSQL(key) {
+  const state = fieldState[key];
+  if (!state || state.mode !== 'dynamic') return;
+  const sql   = state.dynamicVal || '';
+  const alias = FIELD_ALIASES[key] || 'Value';
+  const errEl = document.getElementById(key + '-sql-error');
+  const taEl  = document.getElementById(key + '-dynamic-inp');
+  if (!sql.trim()) {
+    if (errEl) errEl.style.display = 'none';
+    if (taEl)  taEl.style.borderColor = '';
+    return;
+  }
+  const pattern = new RegExp('\\[?' + alias + '\\]?', 'i');
+  const valid = pattern.test(sql);
+  if (errEl) errEl.style.display = valid ? 'none' : '';
+  if (taEl) {
+    taEl.style.borderColor = valid ? '' : 'var(--red)';
+    if (!valid) {
+      taEl.style.animation = 'none';
+      taEl.offsetHeight;
+      taEl.style.animation = 'obj-shake .3s ease';
+    }
+  }
+}
+
+function renderFieldEditorInto(key, containerId, isFanout) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = buildFieldEditor(key, '', false, isFanout);
+  wireTokenDrop(container);
+}
+
+// ════════════════════════════════════════════════════════════
+//  PARAM VALUE SUMMARY + RAIL SUMMARIES
+// ════════════════════════════════════════════════════════════
+function getParamValueSummary(p) {
+  if (!p) return '(no value)';
+  if (p.valueSource === 'dynamic') {
+    return p.valueQuery ? 'Dynamic SQL query' : 'Dynamic SQL (no query yet)';
+  }
+  if (p.type === 'date') {
+    if (p.dateMode === 'literal') return p.values[0] || '(no date)';
+    const t = p.dateToken || '{{TODAY}}';
+    if (t === 'TODAY-N') return '{{TODAY-' + (p.todayN||1) + '}}';
+    if (t === 'TODAY+N') return '{{TODAY+' + (p.todayN||1) + '}}';
+    return t;
+  }
+  if (!p.values.length) return '(no value)';
+  const preview = p.values.slice(0,3).join(' | ');
+  return p.values.length > 3 ? preview + ' +' + (p.values.length-3) + ' more' : preview;
+}
+
+function renderRailSummaries() {
+  params.forEach(p => {
+    const el = document.getElementById('pvs-text-' + p.id);
+    if (el) el.textContent = getParamValueSummary(p);
+  });
+  // Delivery summaries
+  const folderSrc = getFieldSource('dlv-folder');
+  const folderVal = getFieldValue('dlv-folder').trim();
+  const folderEl = document.getElementById('dlv-folder-sum-text');
+  if (folderEl) {
+    folderEl.textContent = folderVal ? folderSrc + ' — ' + folderVal : '(not configured)';
+  }
+  const dlvMethod = delivery || 'EMAIL';
+  const emailSumEl = document.getElementById('dlv-email-sum-text');
+  if (emailSumEl) {
+    const eSrc = getFieldSource('dlv-email');
+    const eVal = getFieldValue('dlv-email').trim();
+    emailSumEl.textContent = eVal ? eSrc + ' — ' + eVal : '(not configured)';
+  }
+  const showFolder = ['FOLDER','BOTH'].includes(dlvMethod);
+  const showEmail  = ['EMAIL','BOTH'].includes(dlvMethod);
+  const fSumRow = document.getElementById('dlv-folder-summary');
+  const eSumRow = document.getElementById('dlv-email-summary');
+  if (fSumRow) fSumRow.style.display = showFolder ? 'flex' : 'none';
+  if (eSumRow) eSumRow.style.display = showEmail  ? 'flex' : 'none';
+}
+
+// ════════════════════════════════════════════════════════════
+//  OBJECT BUILDER FIELD ZONE — param value editor
+// ════════════════════════════════════════════════════════════
+function openParamValueInOB(id) {
+  // Return any section currently in OB, then return any param currently in OB
+  _returnOBSection();
+  _returnOBEditor();
+  const p = getP(id);
+  if (!p) return;
+  const pvalEl = document.getElementById('pval-' + id);
+  if (!pvalEl) return;
+
+  const obBody = document.getElementById('ob-field-body');
+  obBody.innerHTML = '';
+
+  pvalEl._obOrigParent  = pvalEl.parentNode;
+  pvalEl._obOrigNextSib = pvalEl.nextSibling;
+
+  pvalEl.style.display = '';
+  obBody.appendChild(pvalEl);
+
+  {const _z=document.getElementById('ob-field-zone');if(_z)_z.style.display='flex';}
+  {const _oe=document.getElementById('ob-empty');if(_oe)_oe.style.display='none';}
+
+  {const _br=document.getElementById('ob-breadcrumb');if(_br){_br.style.display='';_br.textContent='Parameters › '+(p.name||'(unnamed)');}}
+
+  _renderOBTokenChips(p.type === 'date');
+
+  document.getElementById('obj-context').textContent = '— ' + (p.name || 'Parameter') + ' value';
+
+  activeOBParam = id;
+  activeOBType  = 'param';
+
+  // Sync activeObjField so validation and click-away work uniformly
+  if (!activeObjField || activeObjField.key !== 'param-' + id) {
+    activeObjField = {
+      key: 'param-' + id,
+      open: () => openParamValueInOB(id),
+      close: () => { _returnOBEditor(); document.getElementById('pb-'+id)?.classList.remove('open'); },
+    };
+  }
+
+  wireTokenDrop(obBody);
+}
+
+function closeOBEditor() {
+  clearObjectBuilder();
+}
+
+function _returnOBEditor() {
+  if (activeOBParam === null) return;
+  const pvalEl = document.getElementById('pval-' + activeOBParam);
+  if (pvalEl) {
+    pvalEl.style.display = 'none';
+    if (pvalEl._obOrigParent && pvalEl._obOrigParent.isConnected) {
+      try {
+        pvalEl._obOrigParent.insertBefore(pvalEl, pvalEl._obOrigNextSib || null);
+      } catch (e) {
+        pvalEl._obOrigParent.appendChild(pvalEl);
+      }
+    } else {
+      const paramBody = document.getElementById('pb-' + activeOBParam);
+      if (paramBody) paramBody.appendChild(pvalEl);
+    }
+    delete pvalEl._obOrigParent;
+    delete pvalEl._obOrigNextSib;
+  }
+  activeOBParam = null;
+}
+
+function _renderOBTokenChips(forDate) {
+  const chipRow = document.getElementById('ob-tok-chips');
+  if (!forDate) { chipRow.style.display = 'none'; return; }
+  const chips = ['{{TODAY}}','{{PREV_MONTH_END}}','{{PREV_MONTH_START}}','{{PREV_YEAR_END}}','{{REPORTNAME}}'];
+  chipRow.innerHTML = chips.map(t =>
+    '<span class="tok-chip" onclick="insertToken(\'' + t + '\')">' + t + '</span>'
+  ).join('') + '<span class="tok-chip" style="color:var(--muted)" onclick="document.getElementById(\'tok-search\').focus();document.getElementById(\'tok-search\').scrollIntoView()">+ more →</span>';
+  chipRow.style.display = 'flex';
+}
+
+function insertToken(tok) {
+  const el = document.activeElement;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+    const s = el.selectionStart, e = el.selectionEnd;
+    el.value = el.value.slice(0,s) + tok + el.value.slice(e);
+    el.selectionStart = el.selectionEnd = s + tok.length;
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+    el.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+}
+
+function wireTokenDrop(container) {
+  container.querySelectorAll('input[type=text]:not([type=number]),textarea').forEach(el => {
+    el.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect='copy'; };
+    el.ondrop = e => {
+      e.preventDefault();
+      const tok = e.dataTransfer.getData('text/plain');
+      if (!tok) return;
+      const s = el.selectionStart||0, end = el.selectionEnd||0;
+      el.value = el.value.slice(0,s) + tok + el.value.slice(end);
+      el.selectionStart = el.selectionEnd = s + tok.length;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    };
+  });
+}
+
 
 // ════════════════════════════════════════════════════════════
 //  FULL sync — core generation + prepend object SQL
@@ -2485,6 +2682,7 @@ function sync() {
       + '\n\n<span class="cm">-- ── Schedule registration ───────────────────────────────────────</span>\n'
       + current;
   }
+  updateAllTriggerSummaries();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2498,11 +2696,743 @@ function updateTodayNPreview(id) {
 }
 
 // ════════════════════════════════════════════════════════════
+//  DELIVERY / FANOUT SECTION DOM-MOVE (ob-trigger pattern)
+// ════════════════════════════════════════════════════════════
+let obSectionEl = null;
+let obSectionOrigParent = null;
+let obSectionOrigNextSib = null;
+let activeSection = null;  // string key — kept for backward compat with _returnOBSection
+
+function _returnOBSection() {
+  if (!obSectionEl) return;
+  const sectionId = obSectionEl.id;
+  obSectionEl.style.display = 'none';
+  if (obSectionOrigParent && obSectionOrigParent.isConnected) {
+    try {
+      obSectionOrigParent.insertBefore(obSectionEl, obSectionOrigNextSib || null);
+    } catch (e) {
+      obSectionOrigParent.appendChild(obSectionEl);
+    }
+  }
+  obSectionEl = null;
+  obSectionOrigParent = null;
+  obSectionOrigNextSib = null;
+  activeSection = null;
+  // Clear activeObjField if it was tracking this section, so a re-click always opens fresh
+  if (activeObjField && activeObjField.secId === sectionId) {
+    activeObjField = null;
+  }
+}
+
+function _openSectionInOB(key, secEl, label) {
+  const obBody = document.getElementById('ob-field-body');
+
+  // Only record origin and clear OB if this is a different section from what's already there.
+  // Preserving origin prevents it being overwritten with null when refreshing the same section.
+  if (obSectionEl !== secEl) {
+    obBody.innerHTML = '';
+    obSectionEl = secEl;
+    obSectionOrigParent = secEl.parentNode;
+    obSectionOrigNextSib = secEl.nextSibling;
+  }
+  secEl.style.display = '';
+  obBody.appendChild(secEl);
+  activeSection = key;
+  activeOBParam = null;
+  activeOBType = 'delivery';
+
+  {const _z=document.getElementById('ob-field-zone');if(_z)_z.style.display='flex';}
+  {const _oe=document.getElementById('ob-empty');if(_oe)_oe.style.display='none';}
+  {const _tc=document.getElementById('ob-tok-chips');if(_tc)_tc.style.display='none';}
+  {const _br=document.getElementById('ob-breadcrumb');if(_br){_br.style.display='';_br.textContent=label;}}
+  document.getElementById('obj-context').textContent = '— ' + label;
+
+  document.querySelectorAll('.ob-trigger').forEach(el =>
+    el.classList.toggle('active', el.dataset.objKey === key));
+
+  // Render field editors into their placeholder divs now that the section is in the OB.
+  const isFo = secEl.id.startsWith('fo-');
+  const fieldEditorMap = {
+    'dlv-sec-email':      [{ key:'dlv-email',      containerId:'dlv-email-field-editor'      }],
+    'dlv-sec-subject':    [{ key:'dlv-subject',     containerId:'dlv-subject-field-editor'    }],
+    'dlv-sec-body':       [{ key:'dlv-body',        containerId:'dlv-body-field-editor'       }],
+    'dlv-sec-filename':   [{ key:'dlv-filename',    containerId:'dlv-filename-field-editor'   }],
+    'dlv-sec-folder':     [{ key:'dlv-folder',      containerId:'dlv-folder-field-editor'     }],
+    'fo-sec-email':       [{ key:'fo-email',        containerId:'fo-email-field-editor'       }],
+    'fo-sec-subject':     [{ key:'fo-subject',      containerId:'fo-subject-field-editor'     }],
+    'fo-sec-body':        [{ key:'fo-body',         containerId:'fo-body-field-editor'        }],
+    'fo-sec-filename':    [{ key:'fo-filename',     containerId:'fo-filename-field-editor'    }],
+    'fo-sec-folder':      [{ key:'fo-folder',       containerId:'fo-folder-field-editor'      }],
+    'fo-sec-displayname': [{ key:'fo-displayname',  containerId:'fo-displayname-field-editor' }],
+  };
+  (fieldEditorMap[secEl.id] || []).forEach(t => {
+    renderFieldEditorInto(t.key, t.containerId, isFo);
+  });
+
+  wireTokenDrop(obBody);
+}
+
+// ── Unified Object Builder opener ──────────────────────────────────────────
+function openInObjectBuilder(config) {
+  if (activeObjField) {
+    const sameKey = activeObjField.key === config.key;
+    const sameSec = config.secId && activeObjField.secId === config.secId;
+    // Check whether the previously active section/param is still physically in the OB
+    const isStillOpen = obSectionEl !== null || activeOBParam !== null;
+    if ((sameKey || sameSec) && isStillOpen) {
+      // Already open and content is live — no-op (avoids innerHTML='' on live section)
+      return;
+    }
+    if (!isStillOpen) {
+      // Stale reference — section was returned to wizard but activeObjField wasn't cleared.
+      // Clear it so we fall through and open fresh below.
+      activeObjField = null;
+    } else {
+      // Different item — validate current before switching
+      const curKey = activeObjField.key;
+      const err = validateObjField(curKey);
+      if (err) { showObjValidationError(err); return; }
+      document.getElementById('obj-validation-error')?.remove();
+      if (activeObjField.close) activeObjField.close();
+      activeObjField = null;
+    }
+  }
+  activeObjField = config;
+  config.open();
+}
+
+function clearObjectBuilder() {
+  const prev = activeObjField;
+  activeObjField = null;  // clear first to prevent stale-ref loops in _returnOBSection
+  if (prev && prev.close) prev.close();
+  _returnOBSection();
+  _returnOBEditor();
+  {const _z=document.getElementById('ob-field-zone');if(_z)_z.style.display='none';}
+  {const _oe=document.getElementById('ob-empty');if(_oe)_oe.style.display='';}
+  {const _br=document.getElementById('ob-breadcrumb');if(_br){_br.style.display='none';_br.textContent='';}}
+  {const _tc=document.getElementById('ob-tok-chips');if(_tc)_tc.style.display='none';}
+  document.getElementById('obj-context').textContent = '— click a parameter or delivery field to edit';
+  document.getElementById('obj-validation-error')?.remove();
+  document.querySelectorAll('.ob-trigger').forEach(el => el.classList.remove('active'));
+}
+
+// ════════════════════════════════════════════════════════════
+//  GROUP BLOCKS — open/build/summarise
+// ════════════════════════════════════════════════════════════
+
+function _openGroupInOB(key, label, contentFn) {
+  openInObjectBuilder({
+    key,
+    open: () => {
+      const obBody = document.getElementById('ob-field-body');
+      obBody.innerHTML = contentFn();
+      const _fz = document.getElementById('ob-field-zone');
+      if (_fz) _fz.style.display = 'flex';
+      const _oe = document.getElementById('ob-empty');
+      if (_oe) _oe.style.display = 'none';
+      const _br = document.getElementById('ob-breadcrumb');
+      if (_br) { _br.style.display = ''; _br.textContent = label; }
+      const _ctx = document.getElementById('obj-context');
+      if (_ctx) _ctx.textContent = '— ' + label;
+      document.querySelectorAll('.ob-group').forEach(el =>
+        el.classList.toggle('active', el.id === key.replace('dlv-grp-','dlv-').replace('-','_group').replace('fo-grp-','fo-').replace('-','_group') || false));
+      // simpler: just match by key
+      document.querySelectorAll('.ob-group').forEach(el => el.classList.remove('active'));
+      const activeGrp = document.getElementById(
+        key === 'dlv-grp-email'      ? 'dlv-email-group'   :
+        key === 'dlv-grp-folder'     ? 'dlv-folder-group'  :
+        key === 'fo-grp-email'       ? 'fo-email-group'    :
+        key === 'fo-grp-folder'      ? 'fo-folder-group'   :
+        key === 'fo-grp-displayname' ? 'fo-dn-group'       : '');
+      if (activeGrp) activeGrp.classList.add('active');
+      wireTokenDrop(obBody);
+      updateOverwriteWarn();
+      rcpRender();
+    },
+    close: () => {
+      document.querySelectorAll('.ob-group').forEach(el => el.classList.remove('active'));
+    },
+  });
+}
+
+function openDeliveryGroup(group) {
+  const labels = { email:'Delivery › Email', folder:'Delivery › Folder' };
+  _openGroupInOB('dlv-grp-' + group, labels[group] || group,
+    () => buildDeliveryGroupContent(group));
+}
+
+function openFanoutGroup(group) {
+  const labels = {
+    email:       'Fan-out › Per-entity Email',
+    folder:      'Fan-out › Per-entity Folder',
+    displayname: 'Fan-out › Entity Label',
+  };
+  _openGroupInOB('fo-grp-' + group, labels[group] || group,
+    () => buildFanoutGroupContent(group));
+}
+
+function _grpSection(icon, label, noPrefix) {
+  const prefix = noPrefix ? '' : 'Configure ';
+  return '<div class="grp-section-label">' + icon + ' ' + prefix + label + '</div>';
+}
+
+function buildDeliveryGroupContent(group) {
+  let h = '';
+  if (group === 'email') {
+    h += _grpSection('✉','TO — Email Recipient');
+    h += buildFieldEditor('dlv-email','TO — Email Recipient', true, false);
+    h += _grpSection('📧','Subject');
+    h += buildFieldEditor('dlv-subject','Subject', true, false);
+    h += _grpSection('📧','Body');
+    h += buildFieldEditor('dlv-body','Body', true, false);
+    h += _grpSection('📄','Attachment Name');
+    h += buildFieldEditor('dlv-filename','Attachment Name', false, false);
+    h += _grpSection('👥','Standing Recipients (CC / BCC)');
+    h += buildRecipientsHTML();
+  } else {
+    h += _grpSection('📁','Folder Path');
+    h += buildFieldEditor('dlv-folder','Folder Path', true, false);
+    h += _grpSection('📄','File Name');
+    h += buildFieldEditor('dlv-filename','File Name', false, false);
+    h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Also used as email attachment name when delivery includes EMAIL.</div>';
+  }
+  return h;
+}
+
+function buildFanoutGroupContent(group) {
+  let h = '';
+  if (group === 'email') {
+    h += _grpSection('✉','TO — Email Resolver');
+    h += buildFieldEditor('fo-email','TO — Email Resolver', true, true);
+    h += _grpSection('📧','Per-entity Subject');
+    h += buildFieldEditor('fo-subject','Per-entity Subject', false, true);
+    h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery subject.</div>';
+    h += _grpSection('📧','Per-entity Body');
+    h += buildFieldEditor('fo-body','Per-entity Body', false, true);
+    h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery body.</div>';
+    h += _grpSection('📄','Per-entity Attachment Name');
+    h += buildFieldEditor('fo-filename','Per-entity Attachment Name', false, true);
+    h += '<div class="info" style="margin-top:4px">Optional. See Folder group for overwrite rules.</div>';
+  } else if (group === 'folder') {
+    h += _grpSection('📁','Per-entity Folder Path');
+    h += buildFieldEditor('fo-folder','Per-entity Folder Path', false, true);
+    h += _grpSection('📄','Per-entity File Name');
+    h += buildFieldEditor('fo-filename','Per-entity File Name', false, true);
+    h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery Folder Path.</div>';
+    h += '<div id="fo-overwrite-warn" style="margin-top:10px"></div>';
+  } else if (group === 'displayname') {
+    h += _grpSection('🏷','Entity Label');
+    h += buildFieldEditor('fo-displayname','Entity Label', false, true);
+    h += '<div class="info" style="margin-top:4px">Required if {{DISPLAYNAME}} is used in any template.</div>';
+  }
+  return h;
+}
+
+function buildRecipientsHTML() {
+  // Render container — rcpRender() will populate it after insertion
+  return '<div id="rcp-list-ob" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px"></div>' +
+    '<button class="btn btn-ghost" onclick="rcpAdd()" style="font-size:11px;padding:5px 10px">+ Add CC / BCC recipient</button>';
+}
+
+function addRecipientFromOB() {
+  rcpAdd();
+}
+
+function _refreshRcpListOB() {
+  // Only re-render the recipient list section, not the whole OB group
+  const listEl = document.getElementById('rcp-list-ob');
+  if (!listEl) return;
+  const rcps = getRecipients();
+  let h = '';
+  rcps.forEach((r, i) => {
+    h += '<div class="rcp-row">' +
+      '<select onchange="updateRecipientRole(' + i + ',this.value)">' +
+      '<option value="CC"'  + (r.role==='CC'  ? ' selected':'') + '>CC</option>' +
+      '<option value="BCC"' + (r.role==='BCC' ? ' selected':'') + '>BCC</option>' +
+      '</select>' +
+      '<input type="email" value="' + esc(r.email) + '" placeholder="email@example.com"' +
+      ' oninput="updateRecipientEmail(' + i + ',this.value)"/>' +
+      '<label class="rcp-fanout-label"' + (r.includeInFanOut ? ' style="color:var(--accent)"':'') + '>' +
+      '<input type="checkbox"' + (r.includeInFanOut ? ' checked':'') +
+      ' onchange="updateRecipientFanOut(' + i + ',this.checked)"/> Fan-out</label>' +
+      '<button onclick="removeRecipient(' + i + ')" title="Remove">×</button>' +
+      '</div>';
+  });
+  listEl.innerHTML = h;
+}
+
+function updateRecipientRole(idx, val) {
+  const rows = [...document.querySelectorAll('#rcp-list .rcp-row')];
+  if (rows[idx]) { const sel = rows[idx].querySelector('select'); if (sel) sel.value = val; }
+  sync(); _refreshRcpListOB();
+}
+
+function updateRecipientEmail(idx, val) {
+  const rows = [...document.querySelectorAll('#rcp-list .rcp-row')];
+  if (rows[idx]) { const inp = rows[idx].querySelector('input[type=email]'); if (inp) inp.value = val; }
+  sync(); _refreshRcpListOB();
+}
+
+function updateRecipientFanOut(idx, checked) {
+  const rows = [...document.querySelectorAll('#rcp-list .rcp-row')];
+  if (rows[idx]) { const cb = rows[idx].querySelector('input[type=checkbox]'); if (cb) cb.checked = checked; }
+  sync(); _refreshRcpListOB();
+}
+
+function removeRecipient(idx) {
+  const rows = [...document.querySelectorAll('#rcp-list .rcp-row')];
+  if (rows[idx]) rows[idx].remove();
+  sync();
+  _refreshRcpListOB();
+}
+
+// ── Group summary value lines ────────────────────────────────────────────
+function updateOverwriteWarn() {
+  const el = document.getElementById('fo-overwrite-warn');
+  if (!el) return;
+  const foFnMode  = (fieldState['fo-filename'] || {}).mode || 'parent';
+  const foFolMode = (fieldState['fo-folder']   || {}).mode || 'parent';
+  const needsCheck = (fanout === 'INDIVIDUAL' || fanout === 'BOTH') && ['FOLDER','BOTH'].includes(delivery);
+  // Simple rule: both 'Use from Delivery' = same folder + same filename = overwrite
+  if (needsCheck && foFnMode === 'parent' && foFolMode === 'parent') {
+    el.innerHTML = '<div class="val-error" style="margin-top:6px">Individual rows will overwrite each other — both Folder Path and File Name are using the Delivery values. Change at least one to be unique per entity.</div>';
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function updateGroupSummary() {
+  function setRowVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || '';
+  }
+
+  const hasEmail  = ['EMAIL','BOTH'].includes(delivery);
+  const hasFolder = ['FOLDER','BOTH'].includes(delivery);
+
+  // Delivery EMAIL rows
+  setRowVal('dlv-email-tval',    getFieldSource('dlv-email')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-email'),45));
+  setRowVal('dlv-subject-tval',  getFieldSource('dlv-subject')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-subject'),45));
+  setRowVal('dlv-body-tval',     getFieldSource('dlv-body')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-body'),45));
+  setRowVal('dlv-filename-tval', getFieldSource('dlv-filename')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-filename'),45));
+  const rcps = getRecipients();
+  setRowVal('dlv-rcp-tval', rcps.length > 0 ? rcps.length + ' recipient' + (rcps.length>1?'s':'') : '');
+
+  // Delivery FOLDER rows
+  setRowVal('dlv-foldername-tval', getFieldSource('dlv-filename')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-filename'),45));
+  setRowVal('dlv-folder-tval',     getFieldSource('dlv-folder')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('dlv-folder'),45));
+
+  // Group incomplete markers
+  const eg = document.getElementById('dlv-email-group');
+  if (eg && hasEmail) eg.classList.toggle('incomplete',
+    !getFieldValue('dlv-email').trim() || !getFieldValue('dlv-subject').trim() || !getFieldValue('dlv-body').trim());
+  const fg = document.getElementById('dlv-folder-group');
+  if (fg && hasFolder) fg.classList.toggle('incomplete', !getFieldValue('dlv-folder').trim());
+
+  if (fanout === 'NONE') return;
+
+  // Fan-out EMAIL rows
+  setRowVal('fo-email-tval',   getFieldSource('fo-email')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-email'),45));
+  setRowVal('fo-subject-tval', getFieldSource('fo-subject')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-subject'),45));
+  setRowVal('fo-body-tval',    getFieldSource('fo-body')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-body'),45));
+  setRowVal('fo-fn-tval',      getFieldSource('fo-filename')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-filename'),45));
+
+  // Fan-out FOLDER rows
+  setRowVal('fo-foldername-tval', getFieldSource('fo-filename')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-filename'),45));
+  setRowVal('fo-folder-tval',     getFieldSource('fo-folder')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-folder'),45));
+
+  // Entity label
+  setRowVal('fo-dn-tval', getFieldSource('fo-displayname')==='DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(getFieldValue('fo-displayname'),45));
+
+  updateOverwriteWarn();
+
+  // Fan-out folder incomplete
+  const foFn  = getFieldValue('fo-filename').trim();
+  const foFol = getFieldValue('fo-folder').trim();
+  const ffg   = document.getElementById('fo-folder-group');
+  if (ffg && hasFolder) ffg.classList.toggle('incomplete',
+    !foFn && !foFol && (fanout==='INDIVIDUAL'||fanout==='BOTH'));
+}
+
+function openDeliverySection(key) {
+  const secId = {
+    'dlv-email':      'dlv-sec-email',
+    'dlv-subject':    'dlv-sec-subject',
+    'dlv-body':       'dlv-sec-body',
+    'dlv-recipients': 'dlv-sec-rcp',
+    'dlv-filename':   'dlv-sec-filename',
+    'dlv-foldername': 'dlv-sec-filename',  // same underlying section
+    'dlv-folder':     'dlv-sec-folder',
+  }[key];
+  const labels = {
+    'dlv-email':      'Delivery › TO — Email Recipient',
+    'dlv-subject':    'Delivery › Subject',
+    'dlv-body':       'Delivery › Body',
+    'dlv-recipients': 'Delivery › Standing Recipients',
+    'dlv-filename':   'Delivery › Attachment Name',
+    'dlv-foldername': 'Delivery › File Name',
+    'dlv-folder':     'Delivery › Folder Path',
+  };
+  const secEl = document.getElementById(secId);
+  if (!secEl) return;
+
+  openInObjectBuilder({
+    key,
+    secId,
+    open: () => _openSectionInOB(key, secEl, labels[key] || key),
+    close: () => _returnOBSection(),
+  });
+}
+
+function openFanoutSection(key) {
+  const secId = {
+    'fo-email':       'fo-sec-email',
+    'fo-subject':     'fo-sec-subject',
+    'fo-body':        'fo-sec-body',
+    'fo-folder':      'fo-sec-folder',
+    'fo-foldername':  'fo-sec-filename',  // same underlying section as fo-filename
+    'fo-filename':    'fo-sec-filename',
+    'fo-displayname': 'fo-sec-displayname',
+  }[key];
+  const labels = {
+    'fo-email':       'Fan-out › TO — Email Resolver',
+    'fo-subject':     'Fan-out › Per-entity Subject',
+    'fo-body':        'Fan-out › Per-entity Body',
+    'fo-folder':      'Fan-out › Folder Path Resolver',
+    'fo-foldername':  'Fan-out › Per-entity File Name',
+    'fo-filename':    'Fan-out › Per-entity File Name',
+    'fo-displayname': 'Fan-out › Entity Label',
+  };
+  const secEl = document.getElementById(secId);
+  if (!secEl) return;
+
+  openInObjectBuilder({
+    key,
+    secId,
+    open: () => _openSectionInOB(key, secEl, labels[key] || key),
+    close: () => _returnOBSection(),
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  VALIDATION
+// ════════════════════════════════════════════════════════════
+function validateObjField(section) {
+  if (!section) return null;
+  if (section.startsWith('param-')) {
+    const id = parseInt(section.slice(6));
+    const p = getP(id);
+    if (!p) return null;
+    if (!p.name || !p.name.trim()) return 'Parameter name is required.';
+    if (p.valueSource === 'dynamic') {
+      const q = (document.getElementById('pi-query-' + p.id)?.value || p.valueQuery || '').trim();
+      if (!q) return 'SQL Query is required for Dynamic Query parameters.';
+    } else if (p.type === 'date') {
+      // token mode always has a default — no block needed
+    } else {
+      if (!p.values || p.values.length === 0 || p.values.every(v => !v.trim()))
+        return 'At least one value is required.';
+    }
+    return null;
+  }
+  if (section.startsWith('dlv-')) return validateDeliveryField(section);
+  if (section.startsWith('fo-'))  return validateFanoutField(section);
+  return null;
+}
+
+function validateDeliveryGroup(group) {
+  if (group === 'email') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    if (!getFieldValue('dlv-email').trim())   return 'TO email address is required.';
+    if (!getFieldValue('dlv-subject').trim()) return 'Email subject is required.';
+    if (!getFieldValue('dlv-body').trim())    return 'Email body is required.';
+    return null;
+  }
+  if (group === 'folder') {
+    if (!['FOLDER','BOTH'].includes(delivery)) return null;
+    if (!getFieldValue('dlv-folder').trim())   return 'Folder path is required.';
+    if (fanout === 'INDIVIDUAL' || fanout === 'BOTH') {
+      const foFn  = getFieldValue('fo-filename').trim();
+      const foFol = getFieldValue('fo-folder').trim();
+      if (!foFn && !foFol)
+        return 'Individual rows will overwrite each other — configure either Per-entity File Name or Per-entity Folder Path.';
+    }
+    return null;
+  }
+  return null;
+}
+
+function validateFanoutGroup(group) {
+  if (fanout === 'NONE') return null;
+  if (group === 'email') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    if (!getFieldValue('fo-email').trim()) return 'Per-entity email resolver is required.';
+    return null;
+  }
+  if (group === 'folder') {
+    if (!['FOLDER','BOTH'].includes(delivery)) return null;
+    if (fanout === 'INDIVIDUAL' || fanout === 'BOTH') {
+      const foFn  = getFieldValue('fo-filename').trim();
+      const foFol = getFieldValue('fo-folder').trim();
+      if (!foFn && !foFol)
+        return 'Individual rows will overwrite each other — configure either Per-entity File Name or Per-entity Folder Path.';
+    }
+    return null;
+  }
+  if (group === 'displayname') {
+    if (!displayNameUsed()) return null;
+    if (!getFieldValue('fo-displayname').trim())
+      return '{{DISPLAYNAME}} is used but Entity Label has no resolver configured.';
+    return null;
+  }
+  return null;
+}
+
+function validateDeliveryField(field) {
+  if (field === 'dlv-email') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    const val = getFieldValue('dlv-email').trim();
+    if (!val) return 'Email recipient is required for ' + delivery + ' delivery. Enter a static address or Dynamic SQL query.';
+    if (getFieldSource('dlv-email') === 'DYNAMIC_SQL') _runValidateDynSQL('dlv-email');
+  }
+  if (field === 'dlv-subject') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    const subj = getFieldValue('dlv-subject').trim();
+    if (!subj) return 'Email Subject is required.';
+  }
+  if (field === 'dlv-body') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    const b = getFieldValue('dlv-body').trim();
+    if (!b) return 'Email Body is required.';
+  }
+  if (field === 'dlv-recipients') {
+    const rows = [...document.querySelectorAll('#rcp-list .rcp-row')];
+    for (const row of rows) {
+      const email = row.querySelector('input[type=email], input:not([type]):not([select])')?.value?.trim();
+      if (!email) return 'A recipient row has no email address. Fill it in or remove the row.';
+    }
+    return null;
+  }
+  if (field === 'dlv-filename' || field === 'dlv-foldername') {
+    return null;
+  }
+  if (field === 'dlv-folder') {
+    if (!['FOLDER','BOTH'].includes(delivery)) return null;
+    const val = getFieldValue('dlv-folder').trim();
+    if (!val) return 'Folder Path is required for ' + delivery + ' delivery.';
+    if (getFieldSource('dlv-folder') === 'DYNAMIC_SQL') _runValidateDynSQL('dlv-folder');
+  }
+  return null;
+}
+
+function validateFanoutField(field) {
+  if (fanout === 'NONE') return null;
+  function displayNameUsed() {
+    const keys = ['dlv-subject','dlv-body','dlv-filename','fo-subject','fo-body','fo-filename'];
+    return keys.some(k => getFieldValue(k).includes('{{DISPLAYNAME}}'));
+  }
+  if (field === 'fo-email') {
+    if (!['EMAIL','BOTH'].includes(delivery)) return null;
+    const val = getFieldValue('fo-email').trim();
+    if (!val) return 'Per-entity email resolver is required when delivery includes EMAIL.';
+    if (getFieldSource('fo-email') === 'DYNAMIC_SQL') _runValidateDynSQL('fo-email');
+  }
+  if (field === 'fo-folder') {
+    if (!['FOLDER','BOTH'].includes(delivery)) return null;
+    const val = getFieldValue('fo-folder').trim();
+    if (!val) return 'Per-entity folder resolver is required when delivery includes FOLDER.';
+    if (getFieldSource('fo-folder') === 'DYNAMIC_SQL') _runValidateDynSQL('fo-folder');
+  }
+  if (field === 'fo-displayname') {
+    if (!displayNameUsed()) return null;
+    const val = getFieldValue('fo-displayname').trim();
+    if (!val) return '{{DISPLAYNAME}} is used in a template but Entity Label has no resolver configured. Add a resolver or remove {{DISPLAYNAME}} from your templates.';
+  }
+  if (field === 'fo-filename' || field === 'fo-foldername') return null;
+  if (field === 'fo-subject'  || field === 'fo-body')       return null;
+  return null;
+}
+
+function showObjValidationError(msg) {
+  document.getElementById('obj-validation-error')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'obj-validation-error';
+  banner.style.cssText = 'background:#1a0808;border:1px solid var(--red);border-radius:6px;color:#fca5a5;font-size:11px;padding:10px 14px;margin:0 0 12px;display:flex;align-items:flex-start;gap:8px;flex-shrink:0';
+  banner.innerHTML = '<span style="font-weight:700;flex-shrink:0">✗</span><span>' + msg + '</span>';
+  const pane = document.getElementById('ob-field-body');
+  pane.insertBefore(banner, pane.firstChild);
+  const panel = document.getElementById('obj-panel');
+  panel.style.animation = 'none';
+  panel.offsetHeight;
+  panel.style.animation = 'obj-shake .3s ease';
+}
+
+// ════════════════════════════════════════════════════════════
+//  CLICK-AWAY VALIDATION  (Part A — Bug 2: document-level, useCapture)
+// ════════════════════════════════════════════════════════════
+
+// Track whether mousedown started inside the OB panel.
+// If it did, a subsequent click event (even if it ends outside) must not close the OB.
+// This prevents text-selection drag from accidentally closing the OB.
+let _obMouseDownInside = false;
+document.addEventListener('mousedown', function(e) {
+  _obMouseDownInside = !!e.target.closest('#obj-panel');
+}, true);
+
+document.addEventListener('click', function(e) {
+  if (!activeObjField) return;
+
+  // If the drag/click started inside the OB, never close it
+  if (_obMouseDownInside) return;
+
+  // These areas must never trigger click-away
+  const inObjPanel   = e.target.closest('#obj-panel');
+  const onObTrigger  = e.target.closest('.ob-trigger');
+  const onObGroup    = e.target.closest('.ob-group');
+  const inTokSide    = e.target.closest('#tok-side');
+  const inRightPanel = e.target.closest('#right-panel') || e.target.closest('#sql-panel');
+  const inLoadPanel  = e.target.closest('.load-panel');
+  const inStepHeader = e.target.closest('.step-header');
+
+  if (inObjPanel || inTokSide || inRightPanel || inLoadPanel || inStepHeader) return;
+  if (onObTrigger || onObGroup) return;
+
+  // Skip validation for fan-out fields when fan-out mode is NONE
+  const skipFoVal = activeObjField.key && activeObjField.key.startsWith('fo-') && fanout === 'NONE';
+  const err = skipFoVal ? null : validateObjField(activeObjField.key);
+  if (err) {
+    showObjValidationError(err);
+    return;
+  }
+  clearObjectBuilder();
+}, true);
+
+// ════════════════════════════════════════════════════════════
+//  TRIGGER SUMMARIES
+// ════════════════════════════════════════════════════════════
+function trunc(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function setTriggerSummary(id, text, isEmpty) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || (isEmpty ? 'Not configured' : '—');
+  el.classList.toggle('empty', !text && isEmpty !== false);
+}
+
+function updateAllTriggerSummaries() {
+  // Delivery: email
+  const dlvEVal = getFieldValue('dlv-email').trim();
+  const dlvESrc = getFieldSource('dlv-email');
+  setTriggerSummary('dlv-email-tval',
+    dlvEVal ? dlvESrc + ' — ' + trunc(dlvEVal, 35) : '',
+    !dlvEVal);
+
+  // Delivery: subject
+  const subj = getFieldValue('dlv-subject').trim();
+  const subjSrc = getFieldSource('dlv-subject');
+  setTriggerSummary('dlv-subject-tval',
+    subj ? (subjSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(subj, 45)) : '',
+    !subj);
+
+  // Delivery: body
+  const bodyVal = getFieldValue('dlv-body').trim();
+  const bodySrc = getFieldSource('dlv-body');
+  setTriggerSummary('dlv-body-tval',
+    bodyVal ? (bodySrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(bodyVal, 45)) : '',
+    !bodyVal);
+
+  // Delivery: recipients
+  const rcpCount = document.querySelectorAll('#rcp-list .rcp-row').length;
+  setTriggerSummary('dlv-rcp-tval',
+    rcpCount > 0 ? rcpCount + ' recipient' + (rcpCount !== 1 ? 's' : '') : 'None (optional)',
+    false);
+
+  // Delivery: filename (shared by dlv-filename and dlv-foldername)
+  const fnSrc  = getFieldSource('dlv-filename');
+  const fnVal  = getFieldValue('dlv-filename').trim();
+  const fnText = fnVal ? (fnSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(fnVal, 35)) : '';
+  setTriggerSummary('dlv-filename-tval', fnText || 'Not configured (optional)', false);
+  setTriggerSummary('dlv-foldername-tval', fnText || 'Not configured (optional)', false);
+
+  // Delivery: folder
+  const fSrc = getFieldSource('dlv-folder');
+  const fVal = getFieldValue('dlv-folder').trim();
+  const fText = fVal ? (fSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : fSrc + ' — ' + trunc(fVal, 35)) : '';
+  setTriggerSummary('dlv-folder-tval',
+    fText || (['EMAIL'].includes(delivery) ? 'Not required' : ''),
+    !fText && ['FOLDER','BOTH'].includes(delivery));
+
+  // Fan-out: email
+  const foEVal = getFieldValue('fo-email').trim();
+  const foESrc = getFieldSource('fo-email');
+  setTriggerSummary('fo-email-tval',
+    foEVal ? (foESrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : foESrc + ' — ' + trunc(foEVal, 30)) : '',
+    !foEVal);
+
+  // Fan-out: per-entity subject
+  const foSubjVal = getFieldValue('fo-subject').trim();
+  const foSubjSrc = getFieldSource('fo-subject');
+  setTriggerSummary('fo-subject-tval',
+    foSubjVal ? (foSubjSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(foSubjVal, 40)) : 'Falls back to Delivery subject',
+    false);
+
+  // Fan-out: per-entity body
+  const foBodyVal = getFieldValue('fo-body').trim();
+  const foBodySrc = getFieldSource('fo-body');
+  setTriggerSummary('fo-body-tval',
+    foBodyVal ? (foBodySrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(foBodyVal, 40)) : 'Falls back to Delivery body',
+    false);
+
+  // Fan-out: folder
+  const foFVal = getFieldValue('fo-folder').trim();
+  const foFSrc = getFieldSource('fo-folder');
+  setTriggerSummary('fo-folder-tval',
+    foFVal ? (foFSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : foFSrc + ' — ' + trunc(foFVal, 30)) : '',
+    !foFVal);
+
+  // Fan-out: displayname
+  const foDNVal = getFieldValue('fo-displayname').trim();
+  const foDNSrc = getFieldSource('fo-displayname');
+  setTriggerSummary('fo-dn-tval',
+    foDNVal ? (foDNSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : foDNSrc + ' — ' + trunc(foDNVal, 30)) : 'None (uses raw value)',
+    false);
+
+  // Fan-out: filename
+  const foFNVal = getFieldValue('fo-filename').trim();
+  const foFNSrc = getFieldSource('fo-filename');
+  const foFNText = foFNVal ? (foFNSrc === 'DYNAMIC_SQL' ? 'Dynamic SQL' : trunc(foFNVal, 40)) : '';
+  setTriggerSummary('fo-fn-tval',
+    foFNText || 'Not configured (optional)',
+    false);
+  setTriggerSummary('fo-foldername-tval',
+    foFNText || 'Not configured (optional)',
+    false);
+
+  // Parameters
+  params.forEach(p => {
+    const el = document.getElementById('pvs-text-' + p.id);
+    if (!el) return;
+    const sum = getParamValueSummary(p);
+    el.textContent = sum || 'No value set';
+    el.classList.toggle('empty', !sum);
+  });
+
+  // Validation state on ob-triggers
+  document.querySelectorAll('.ob-trigger[data-obj-key]').forEach(trig => {
+    const key = trig.dataset.objKey;
+    const err = key.startsWith('param-') ? null : validateObjField(key);
+    trig.classList.toggle('invalid', !!err && trig.style.display !== 'none');
+  });
+}
+
+// ════════════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════════════
 onFreq();
 renderToks();
-renderDynExamples();
 sync();
 </script>
 </body>

@@ -22,21 +22,22 @@ IF OBJECT_ID('[schdl].[usp_RegisterSchedule]',      'P')  IS NOT NULL DROP PROCE
 GO
 
 -- Functions (after procs that reference them)
-IF OBJECT_ID('[schdl].[fn_FetchDocumentId]',  'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_FetchDocumentId];
-IF OBJECT_ID('[schdl].[fn_ResolveDateToken]', 'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveDateToken];
+IF OBJECT_ID('[schdl].[fn_FetchDocumentId]',    'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_FetchDocumentId];
+IF OBJECT_ID('[schdl].[fn_ResolveAllTokens]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveAllTokens];
+IF OBJECT_ID('[schdl].[fn_ResolveDateToken]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveDateToken];
 GO
 
 -- Tables (children before parents to satisfy FK constraints)
-IF OBJECT_ID('[schdl].[DispatchQueue]',           'U') IS NOT NULL DROP TABLE [schdl].[DispatchQueue];
-IF OBJECT_ID('[schdl].[ExecutionLog]',            'U') IS NOT NULL DROP TABLE [schdl].[ExecutionLog];
-IF OBJECT_ID('[schdl].[ScheduleRecipient]',       'U') IS NOT NULL DROP TABLE [schdl].[ScheduleRecipient];
-IF OBJECT_ID('[schdl].[ScheduleParameter]',       'U') IS NOT NULL DROP TABLE [schdl].[ScheduleParameter];
-IF OBJECT_ID('[schdl].[ParameterDispatchConfig]', 'U') IS NOT NULL DROP TABLE [schdl].[ParameterDispatchConfig];
-IF OBJECT_ID('[schdl].[DocumentParameter]',       'U') IS NOT NULL DROP TABLE [schdl].[DocumentParameter];
-IF OBJECT_ID('[schdl].[Schedule]',                'U') IS NOT NULL DROP TABLE [schdl].[Schedule];
-IF OBJECT_ID('[schdl].[Recipient]',               'U') IS NOT NULL DROP TABLE [schdl].[Recipient];
-IF OBJECT_ID('[schdl].[Document]',                'U') IS NOT NULL DROP TABLE [schdl].[Document];
-IF OBJECT_ID('[schdl].[DateToken]',               'U') IS NOT NULL DROP TABLE [schdl].[DateToken];
+IF OBJECT_ID('[schdl].[DispatchQueue]',              'U') IS NOT NULL DROP TABLE [schdl].[DispatchQueue];
+IF OBJECT_ID('[schdl].[ExecutionLog]',               'U') IS NOT NULL DROP TABLE [schdl].[ExecutionLog];
+IF OBJECT_ID('[schdl].[ScheduleStandingRecipient]',  'U') IS NOT NULL DROP TABLE [schdl].[ScheduleStandingRecipient];
+IF OBJECT_ID('[schdl].[ScheduleRecipient]',          'U') IS NOT NULL DROP TABLE [schdl].[ScheduleRecipient];
+IF OBJECT_ID('[schdl].[ScheduleParameter]',          'U') IS NOT NULL DROP TABLE [schdl].[ScheduleParameter];
+IF OBJECT_ID('[schdl].[ParameterDispatchConfig]',    'U') IS NOT NULL DROP TABLE [schdl].[ParameterDispatchConfig];
+IF OBJECT_ID('[schdl].[DocumentParameter]',          'U') IS NOT NULL DROP TABLE [schdl].[DocumentParameter];
+IF OBJECT_ID('[schdl].[Schedule]',                   'U') IS NOT NULL DROP TABLE [schdl].[Schedule];
+IF OBJECT_ID('[schdl].[Document]',                   'U') IS NOT NULL DROP TABLE [schdl].[Document];
+IF OBJECT_ID('[schdl].[DateToken]',                  'U') IS NOT NULL DROP TABLE [schdl].[DateToken];
 GO
 
 -- ============================================================
@@ -115,8 +116,8 @@ CREATE TABLE [schdl].[Document] (
     DefaultLanguage         INT             NOT NULL DEFAULT 1,
     DefaultConfidentiality  NVARCHAR(50)    NOT NULL DEFAULT 'normal',
     IsActive                BIT             NOT NULL DEFAULT 1,
-    CreatedAt               DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedAt              DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME()
+    CreatedAt               DATETIME2       NOT NULL DEFAULT GETDATE(),
+    ModifiedAt              DATETIME2       NOT NULL DEFAULT GETDATE()
 );
 GO
 
@@ -150,25 +151,21 @@ GO
 --    FOLDER      resolve folder path, drop file to location
 --    BOTH        do both email send and folder drop per row
 --
---  All four sources (STATIC / LOOKUP_VIEW / SCALAR_FN / DYNAMIC_SQL)
---  apply identically to Email, Folder, and DisplayName / FileName resolvers.
+--  Two source modes apply to all resolver fields (Email, Folder, FileName, DisplayName, Subject, Body):
 --
 --  Source pattern     SourceValue
 --  ─────────────────  ──────────────────────────────────────────────
---  STATIC             literal value  e.g. "\server
-eports\BRM"
---  LOOKUP_VIEW        "schdl.vw_BRMFolder"
---                     View must expose: LookupKey, <TargetColumn>
---  SCALAR_FN          "dbo.fn_GetBRMFolder"
---                     fn(@Value NVARCHAR(500)) RETURNS NVARCHAR target
---  DYNAMIC_SQL        SQL with {VALUE} placeholder
---                     Must return column named per target (see below)
+--  STATIC             literal value — tokens ({{REPORTNAME}} etc.) resolved at dispatch time
+--  DYNAMIC_SQL        SQL SELECT with {VALUE} placeholder (replaced with fan-out value at runtime)
+--                     Must return a single column with the required alias (see below)
 --
---  Column naming convention for LOOKUP_VIEW / DYNAMIC_SQL:
---    Email resolver   → EmailAddress
---    DisplayName      → DisplayName   (used as email display name / attachment prefix)
---    FileName         → FileName      (overrides the report filename)
---    FolderPath       → FolderPath    (destination folder for file drop)
+--  Required column aliases for DYNAMIC_SQL:
+--    Email resolver   → EmailAddress   (multiple rows STRING_AGG'd comma-separated)
+--    DisplayName      → DisplayName
+--    FileName         → FileName
+--    FolderPath       → FolderPath
+--    Subject          → Subject
+--    Body             → Body
 CREATE TABLE [schdl].[ParameterDispatchConfig] (
     ConfigID                INT             IDENTITY(1,1) PRIMARY KEY,
     ParameterID             INT             NOT NULL UNIQUE
@@ -177,36 +174,36 @@ CREATE TABLE [schdl].[ParameterDispatchConfig] (
     DispatchMode            NVARCHAR(12)    NOT NULL DEFAULT 'COMBINED'
         CHECK (DispatchMode IN ('COMBINED','INDIVIDUAL','BOTH')),
 
-    -- Email delivery (fan-out per-entity resolver)
-    -- Delivery method is set at the Schedule level, not here.
     -- Per-entity email resolver (fan-out only)
-    -- For combined/bulk email address, see Schedule.EmailSourceValue
     EmailSource             NVARCHAR(20)    NOT NULL DEFAULT 'STATIC'
-        CHECK (EmailSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    EmailSourceValue        NVARCHAR(1000)  NULL,
+        CHECK (EmailSource IN ('STATIC','DYNAMIC_SQL')),
+    EmailSourceValue        NVARCHAR(MAX)   NULL,
 
-    -- Display name resolver (email To name / attachment filename prefix)
-    -- Resolved value appended to filename: "BRM001 - Report.xlsx"
+    -- Display name resolver
     DisplayNameSource       NVARCHAR(20)    NULL
-        CHECK (DisplayNameSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    DisplayNameSourceValue  NVARCHAR(1000)  NULL,
+        CHECK (DisplayNameSource IN ('STATIC','DYNAMIC_SQL')),
+    DisplayNameSourceValue  NVARCHAR(MAX)   NULL,
 
-    -- File name override (overrides the default report filename per dispatch row)
-    -- When NULL the report API filename is used unchanged
+    -- File name override — Source/Value pattern, tokens supported in static value
+    -- Tokens: {{DISPLAYNAME}} {{REPORTNAME}} {{DATE_TOKEN}}
     FileNameSource          NVARCHAR(20)    NULL
-        CHECK (FileNameSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    FileNameSourceValue     NVARCHAR(1000)  NULL,
-    FileNameTemplate        NVARCHAR(500)   NULL,   -- e.g. 'BRM_{{PREV_MONTH_END}}_{{DISPLAYNAME}}.xlsx'
-                                                    -- {{DISPLAYNAME}}    replaced with resolved Entity Label (see DisplayNameSource config)
-                                                    -- {{REPORTNAME}}   replaced with DocumentName
-                                                    -- {{TOKEN}}        replaced with resolved date token
+        CHECK (FileNameSource IN ('STATIC','DYNAMIC_SQL')),
+    FileNameSourceValue     NVARCHAR(MAX)   NULL,
 
-    -- Folder drop delivery
-    -- Per-entity folder resolver (fan-out only)
-    -- For combined/bulk folder path, see Schedule.FolderSourceValue
+    -- Per-entity folder resolver (optional — NULL inherits Schedule.FolderSourceValue)
     FolderSource            NVARCHAR(20)    NULL
-        CHECK (FolderSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    FolderSourceValue       NVARCHAR(1000)  NULL
+        CHECK (FolderSource IN ('STATIC','DYNAMIC_SQL')),
+    FolderSourceValue       NVARCHAR(MAX)   NULL,
+
+    -- Per-entity subject override (optional — NULL falls back to Schedule.SubjectSourceValue)
+    SubjectSource           NVARCHAR(20)    NULL
+        CHECK (SubjectSource IN ('STATIC','DYNAMIC_SQL')),
+    SubjectSourceValue      NVARCHAR(MAX)   NULL,
+
+    -- Per-entity body override (optional — NULL falls back to Schedule.BodySourceValue)
+    BodySource              NVARCHAR(20)    NULL
+        CHECK (BodySource IN ('STATIC','DYNAMIC_SQL')),
+    BodySourceValue         NVARCHAR(MAX)   NULL
 );
 GO
 
@@ -228,31 +225,37 @@ CREATE TABLE [schdl].[Schedule] (
     StartDate       DATE            NOT NULL DEFAULT '2000-01-01',
     EndDate         DATE            NULL,
     IsActive        BIT             NOT NULL DEFAULT 1,
-    Subject         NVARCHAR(500)   NULL,
-    BodyTemplate    NVARCHAR(MAX)   NULL,
     --
     -- Schedule-level delivery configuration
-    -- These apply to the combined/bulk row and to all rows when fan-out is not active.
-    -- Fan-out per-entity resolvers live in ParameterDispatchConfig.
+    -- Source/Value pattern throughout: Source = 'STATIC' or 'DYNAMIC_SQL'
+    -- Value = the static string or the SQL query depending on Source
     --
     DeliveryMethod          NVARCHAR(10)   NOT NULL DEFAULT 'EMAIL'
         CHECK (DeliveryMethod IN ('EMAIL','FOLDER','BOTH')),
-    -- Combined email recipient
+    -- Combined email recipient (TO address)
+    -- DYNAMIC_SQL may return multiple rows — STRING_AGG'd into comma-separated string
     EmailSource             NVARCHAR(20)   NULL
-        CHECK (EmailSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    EmailSourceValue        NVARCHAR(1000) NULL,
-    -- File name override (applies to combined row; fan-out rows may override per-entity)
-    FileNameTemplate        NVARCHAR(500)  NULL,
+        CHECK (EmailSource IN ('STATIC','DYNAMIC_SQL')),
+    EmailSourceValue        NVARCHAR(MAX)  NULL,
+    -- Email subject
+    SubjectSource           NVARCHAR(20)   NULL
+        CHECK (SubjectSource IN ('STATIC','DYNAMIC_SQL')),
+    SubjectSourceValue      NVARCHAR(MAX)  NULL,
+    -- Email body
+    BodySource              NVARCHAR(20)   NULL
+        CHECK (BodySource IN ('STATIC','DYNAMIC_SQL')),
+    BodySourceValue         NVARCHAR(MAX)  NULL,
+    -- File name (applies to combined row; fan-out rows may override per-entity)
     FileNameSource          NVARCHAR(20)   NULL
-        CHECK (FileNameSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    FileNameSourceValue     NVARCHAR(1000) NULL,
+        CHECK (FileNameSource IN ('STATIC','DYNAMIC_SQL')),
+    FileNameSourceValue     NVARCHAR(MAX)  NULL,
     -- Folder drop destination (combined row)
     FolderSource            NVARCHAR(20)   NULL
-        CHECK (FolderSource IN ('STATIC','LOOKUP_VIEW','SCALAR_FN','DYNAMIC_SQL')),
-    FolderSourceValue       NVARCHAR(1000) NULL,
+        CHECK (FolderSource IN ('STATIC','DYNAMIC_SQL')),
+    FolderSourceValue       NVARCHAR(MAX)  NULL,
     --
-    CreatedAt       DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
-    ModifiedAt      DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME()
+    CreatedAt       DATETIME2       NOT NULL DEFAULT GETDATE(),
+    ModifiedAt      DATETIME2       NOT NULL DEFAULT GETDATE()
 );
 GO
 
@@ -296,23 +299,18 @@ CREATE TABLE [schdl].[ScheduleParameter] (
 GO
 
 
--- 1.8  Recipients
-CREATE TABLE [schdl].[Recipient] (
-    RecipientID     INT             IDENTITY(1,1) PRIMARY KEY,
-    RecipientName   NVARCHAR(255)   NOT NULL,
-    EmailAddress    NVARCHAR(320)   NOT NULL UNIQUE,
-    IsActive        BIT             NOT NULL DEFAULT 1,
-    CreatedAt       DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME()
-);
-GO
-
-CREATE TABLE [schdl].[ScheduleRecipient] (
-    ScheduleRecipientID INT  IDENTITY(1,1) PRIMARY KEY,
-    ScheduleID          INT  NOT NULL REFERENCES [schdl].[Schedule](ScheduleID),
-    RecipientID         INT  NOT NULL REFERENCES [schdl].[Recipient](RecipientID),
-    RecipientRole       NVARCHAR(10) NOT NULL DEFAULT 'TO'
-        CHECK (RecipientRole IN ('TO','CC','BCC')),
-    CONSTRAINT UQ_SchedRecipient UNIQUE (ScheduleID, RecipientID, RecipientRole)
+-- 1.8  Recipients (flat — one row per schedule+email, no shared address book)
+-- Standing CC/BCC recipients — static email addresses only.
+-- The main TO recipient lives on Schedule.EmailSourceValue.
+-- These are fixed addresses included on every delivery for this schedule.
+CREATE TABLE [schdl].[ScheduleStandingRecipient] (
+    StandingRecipientID  INT             IDENTITY(1,1) PRIMARY KEY,
+    ScheduleID           INT             NOT NULL
+        REFERENCES [schdl].[Schedule](ScheduleID),
+    EmailAddress         NVARCHAR(320)   NOT NULL,
+    RecipientRole        NVARCHAR(5)     NOT NULL
+        CHECK (RecipientRole IN ('CC','BCC')),
+    IncludeInFanOut      BIT             NOT NULL DEFAULT 0
 );
 GO
 
@@ -321,7 +319,7 @@ GO
 CREATE TABLE [schdl].[ExecutionLog] (
     LogID        BIGINT          IDENTITY(1,1) PRIMARY KEY,
     ScheduleID   INT             NOT NULL REFERENCES [schdl].[Schedule](ScheduleID),
-    ExecutedAt   DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    ExecutedAt   DATETIME2       NOT NULL DEFAULT GETDATE(),
     Status       NVARCHAR(20)    NOT NULL DEFAULT 'PENDING'
         CHECK (Status IN ('PENDING','SUCCESS','FAILED','SKIPPED')),
     ErrorMessage NVARCHAR(MAX)   NULL,
@@ -353,8 +351,8 @@ CREATE TABLE [schdl].[DispatchQueue] (
     -- Folder drop fields
     FolderPath       NVARCHAR(1000)  NULL,
     Status           NVARCHAR(20)    NOT NULL DEFAULT 'PENDING'
-        CHECK (Status IN ('PENDING','SENT','FAILED','SKIPPED')),
-    CreatedAt        DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+        CHECK (Status IN ('PENDING','SENT','SUCCESS','FAILED','SKIPPED')),
+    CreatedAt        DATETIME2       NOT NULL DEFAULT GETDATE(),
     ProcessedAt      DATETIME2       NULL,
     ErrorMessage     NVARCHAR(MAX)   NULL
 );
@@ -386,7 +384,7 @@ CREATE FUNCTION [schdl].[fn_ResolveDateToken]
 RETURNS NVARCHAR(500)
 AS
 BEGIN
-    DECLARE @Today  DATE          = ISNULL(@AsOfDate, CAST(SYSUTCDATETIME() AS DATE));
+    DECLARE @Today  DATE          = ISNULL(@AsOfDate, CAST(GETDATE() AS DATE));
     DECLARE @Result NVARCHAR(500) = LTRIM(RTRIM(@RawValue));
 
     -- Token strings only. Use {{TOKEN}} syntax exclusively.
@@ -491,7 +489,122 @@ END;
 GO
 
 
--- 2.2  fn_FetchDocumentId
+-- 2.2  fn_ResolveAllTokens
+--
+--  Resolves {{REPORTNAME}} and all date/offset tokens in a single string.
+--  Use this in usp_BuildDispatchQueue to resolve FolderPath, FileName,
+--  EmailSubject, EmailBody, and DisplayName without opening a cursor per field.
+CREATE FUNCTION [schdl].[fn_ResolveAllTokens]
+(
+    @Input       NVARCHAR(MAX),
+    @AsOfDate    DATE,
+    @ReportName  NVARCHAR(255)
+)
+RETURNS NVARCHAR(MAX)
+AS
+BEGIN
+    IF @Input IS NULL RETURN NULL;
+    DECLARE @Result NVARCHAR(MAX) = @Input;
+
+    -- {{REPORTNAME}}
+    SET @Result = REPLACE(@Result, '{{REPORTNAME}}', ISNULL(@ReportName,''));
+
+    -- TODAY
+    SET @Result = REPLACE(@Result, '{{TODAY}}',
+        CONVERT(NVARCHAR(10), @AsOfDate, 23));
+
+    -- Current week  (Mon=start, Sun=end)
+    SET @Result = REPLACE(@Result, '{{WEEK_START}}',
+        CONVERT(NVARCHAR(10), DATEADD(DAY, 2-DATEPART(WEEKDAY,@AsOfDate), @AsOfDate), 23));
+    SET @Result = REPLACE(@Result, '{{WEEK_END}}',
+        CONVERT(NVARCHAR(10), DATEADD(DAY, 8-DATEPART(WEEKDAY,@AsOfDate), @AsOfDate), 23));
+
+    -- Previous week
+    SET @Result = REPLACE(@Result, '{{PREV_WEEK_START}}',
+        CONVERT(NVARCHAR(10), DATEADD(DAY, -5-DATEPART(WEEKDAY,@AsOfDate), @AsOfDate), 23));
+    SET @Result = REPLACE(@Result, '{{PREV_WEEK_END}}',
+        CONVERT(NVARCHAR(10), DATEADD(DAY,  1-DATEPART(WEEKDAY,@AsOfDate), @AsOfDate), 23));
+
+    -- Current month
+    SET @Result = REPLACE(@Result, '{{MONTH_START}}',
+        CONVERT(NVARCHAR(10), DATEFROMPARTS(YEAR(@AsOfDate),MONTH(@AsOfDate),1), 23));
+    SET @Result = REPLACE(@Result, '{{MONTH_END}}',
+        CONVERT(NVARCHAR(10), EOMONTH(@AsOfDate), 23));
+
+    -- Previous month
+    SET @Result = REPLACE(@Result, '{{PREV_MONTH_START}}',
+        CONVERT(NVARCHAR(10),
+            DATEFROMPARTS(YEAR(DATEADD(MONTH,-1,@AsOfDate)),
+                          MONTH(DATEADD(MONTH,-1,@AsOfDate)),1), 23));
+    SET @Result = REPLACE(@Result, '{{PREV_MONTH_END}}',
+        CONVERT(NVARCHAR(10), EOMONTH(DATEADD(MONTH,-1,@AsOfDate)), 23));
+
+    -- Next month
+    SET @Result = REPLACE(@Result, '{{NEXT_MONTH_START}}',
+        CONVERT(NVARCHAR(10),
+            DATEFROMPARTS(YEAR(DATEADD(MONTH,1,@AsOfDate)),
+                          MONTH(DATEADD(MONTH,1,@AsOfDate)),1), 23));
+    SET @Result = REPLACE(@Result, '{{NEXT_MONTH_END}}',
+        CONVERT(NVARCHAR(10), EOMONTH(DATEADD(MONTH,1,@AsOfDate)), 23));
+
+    -- Current quarter
+    SET @Result = REPLACE(@Result, '{{QUARTER_START}}',
+        CONVERT(NVARCHAR(10),
+            DATEFROMPARTS(YEAR(@AsOfDate),
+                ((DATEPART(QUARTER,@AsOfDate)-1)*3)+1, 1), 23));
+    SET @Result = REPLACE(@Result, '{{QUARTER_END}}',
+        CONVERT(NVARCHAR(10),
+            EOMONTH(DATEFROMPARTS(YEAR(@AsOfDate),
+                DATEPART(QUARTER,@AsOfDate)*3, 1)), 23));
+
+    -- Previous quarter
+    SET @Result = REPLACE(@Result, '{{PREV_QUARTER_START}}',
+        CONVERT(NVARCHAR(10),
+            DATEFROMPARTS(
+                YEAR(DATEADD(QUARTER,-1,@AsOfDate)),
+                ((DATEPART(QUARTER,DATEADD(QUARTER,-1,@AsOfDate))-1)*3)+1,
+                1), 23));
+    SET @Result = REPLACE(@Result, '{{PREV_QUARTER_END}}',
+        CONVERT(NVARCHAR(10),
+            EOMONTH(DATEFROMPARTS(
+                YEAR(DATEADD(QUARTER,-1,@AsOfDate)),
+                DATEPART(QUARTER,DATEADD(QUARTER,-1,@AsOfDate))*3,
+                1)), 23));
+
+    -- Year
+    SET @Result = REPLACE(@Result, '{{YEAR}}',       CAST(YEAR(@AsOfDate)   AS NVARCHAR(4)));
+    SET @Result = REPLACE(@Result, '{{YEAR_START}}',
+        CAST(YEAR(@AsOfDate) AS NVARCHAR(4)) + '-01-01');
+    SET @Result = REPLACE(@Result, '{{YEAR_END}}',
+        CAST(YEAR(@AsOfDate) AS NVARCHAR(4)) + '-12-31');
+    SET @Result = REPLACE(@Result, '{{PREV_YEAR}}',  CAST(YEAR(@AsOfDate)-1 AS NVARCHAR(4)));
+    SET @Result = REPLACE(@Result, '{{PREV_YEAR_START}}',
+        CAST(YEAR(@AsOfDate)-1 AS NVARCHAR(4)) + '-01-01');
+    SET @Result = REPLACE(@Result, '{{PREV_YEAR_END}}',
+        CAST(YEAR(@AsOfDate)-1 AS NVARCHAR(4)) + '-12-31');
+
+    -- Dynamic offset tokens {{TODAY-N}} and {{TODAY+N}}
+    DECLARE @i INT = 1;
+    WHILE @i <= 365
+    BEGIN
+        IF @Result LIKE '%{{TODAY-' + CAST(@i AS NVARCHAR) + '}}%'
+            SET @Result = REPLACE(@Result,
+                '{{TODAY-' + CAST(@i AS NVARCHAR) + '}}',
+                CONVERT(NVARCHAR(10), DATEADD(DAY,-@i,@AsOfDate), 23));
+        IF @Result LIKE '%{{TODAY+' + CAST(@i AS NVARCHAR) + '}}%'
+            SET @Result = REPLACE(@Result,
+                '{{TODAY+' + CAST(@i AS NVARCHAR) + '}}',
+                CONVERT(NVARCHAR(10), DATEADD(DAY,@i,@AsOfDate), 23));
+        IF @Result NOT LIKE '%{{TODAY%' BREAK;
+        SET @i = @i + 1;
+    END;
+
+    RETURN @Result;
+END;
+GO
+
+
+-- 2.3  fn_FetchDocumentId
 --
 --  Resolves the API documentId for a given DocumentName.
 --  This function contains NO stored mappings -- it queries
@@ -569,17 +682,17 @@ GO
 --  @StartDate          default today
 --  @EndDate            NULL = no expiry
 --  @Subject            email subject  (tokens supported)
---  @BodyTemplate       email body     (tokens supported)
+--  Subject/Body are in @DispatchJson as subjectSource/subjectSourceValue, bodySource/bodySourceValue
 --
 --  @DispatchJson       Schedule-level delivery config (separate from fan-out):
 --  {
 --    "deliveryMethod":    "EMAIL | FOLDER | BOTH",
---    "emailSource":       "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--    "emailSource":       "STATIC | DYNAMIC_SQL",
 --    "emailSourceValue":  "address | view | fn | sql",
---    "folderSource":      "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--    "folderSource":      "STATIC | DYNAMIC_SQL",
 --    "folderSourceValue": "path | view | fn | sql",
 --    "fileNameTemplate":  "{{REPORTNAME}}_{{PREV_MONTH_END}}",
---    "fileNameSource":    "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--    "fileNameSource":    "STATIC | DYNAMIC_SQL",
 --    "fileNameSourceValue": "value | view | fn | sql"
 --  }
 --
@@ -594,14 +707,14 @@ GO
 --
 --    "fanOut": {                         OPTIONAL — only on the primary dispatch parameter
 --      "mode":                  "INDIVIDUAL | BOTH",
---      "emailSource":           "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--      "emailSource":           "STATIC | DYNAMIC_SQL",
 --      "emailSourceValue":      "...",
---      "displayNameSource":     "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--      "displayNameSource":     "STATIC | DYNAMIC_SQL",
 --      "displayNameSourceValue":"...",
 --      "fileNameTemplate":      "{{REPORTNAME}}_{{DISPLAYNAME}}_{{PREV_MONTH_END}}",
---      "fileNameSource":        "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--      "fileNameSource":        "STATIC | DYNAMIC_SQL",
 --      "fileNameSourceValue":   "...",
---      "folderSource":          "STATIC | LOOKUP_VIEW | SCALAR_FN | DYNAMIC_SQL",
+--      "folderSource":          "STATIC | DYNAMIC_SQL",
 --      "folderSourceValue":     "..."
 --    }
 --  }
@@ -625,11 +738,9 @@ CREATE PROCEDURE [schdl].[usp_RegisterSchedule]
     @WindowEnd          TIME            = NULL,
     @StartDate          DATE            = NULL,
     @EndDate            DATE            = NULL,
-    @Subject            NVARCHAR(500)   = NULL,
-    @BodyTemplate       NVARCHAR(MAX)   = NULL,
     @DispatchJson       NVARCHAR(MAX)   = NULL,   -- schedule-level delivery config
     @ParametersJson     NVARCHAR(MAX)   = NULL,
-    @RecipientsJson     NVARCHAR(MAX)   = NULL
+    @RecipientsJson     NVARCHAR(MAX)   = NULL    -- CC/BCC standing recipients only
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -643,7 +754,7 @@ BEGIN
         UPDATE [schdl].[Document]
         SET    ReportEndpoint = @ReportEndpoint, DefaultOutputFormat = @OutputFormat,
                DefaultLanguage = @Language, DefaultConfidentiality = @Confidentiality,
-               ModifiedAt = SYSUTCDATETIME()
+               ModifiedAt = GETDATE()
         WHERE  DocumentName = @DocumentName;
     ELSE
         INSERT INTO [schdl].[Document]
@@ -661,11 +772,12 @@ BEGIN
         @pVQ2 NVARCHAR(MAX),
         @pHasDispatch BIT,          @pIsPrimary BIT,
         @pMode NVARCHAR(12),
-        @pEmailSrc NVARCHAR(20),    @pEmailSrcVal NVARCHAR(1000),
-        @pDisplayNameSrc NVARCHAR(20),    @pDisplayNameSrcVal NVARCHAR(1000),
-        @pFileNameSrc NVARCHAR(20),       @pFileNameSrcVal NVARCHAR(1000),
-        @pFileNameTemplate NVARCHAR(500),
-        @pFolderSrc NVARCHAR(20),         @pFolderSrcVal NVARCHAR(1000),
+        @pEmailSrc NVARCHAR(20),    @pEmailSrcVal NVARCHAR(MAX),
+        @pDisplayNameSrc NVARCHAR(20),    @pDisplayNameSrcVal NVARCHAR(MAX),
+        @pFileNameSrc NVARCHAR(20),       @pFileNameSrcVal NVARCHAR(MAX),
+        @pFolderSrc NVARCHAR(20),         @pFolderSrcVal NVARCHAR(MAX),
+        @pSubjectSrc NVARCHAR(20),        @pSubjectSrcVal NVARCHAR(MAX),
+        @pBodySrc NVARCHAR(20),           @pBodySrcVal NVARCHAR(MAX),
         @pParamID INT,
         @pIndex INT = 0, @pCount INT;
 
@@ -681,9 +793,8 @@ BEGIN
         SET @pSort        = ISNULL(TRY_CAST(JSON_VALUE(@pJson,'$.sortOrder') AS INT),@pIndex+1);
         SET @pDefault     = JSON_VALUE(@pJson,'$.defaultValue');
         SET @pValue       = JSON_VALUE(@pJson,'$.value');
-        SET @pValueQuery = JSON_VALUE(@pJson,'$.valueQuery');
-        -- fanOut block on a parameter = per-entity fan-out config only
-        -- delivery method and combined config are on the Schedule via @DispatchJson
+        SET @pValueQuery  = JSON_VALUE(@pJson,'$.valueQuery');
+
         SET @pHasDispatch = CASE WHEN JSON_QUERY(@pJson,'$.fanOut') IS NOT NULL THEN 1 ELSE 0 END;
         SET @pIsPrimary         = ISNULL(TRY_CAST(JSON_VALUE(@pJson,'$.fanOut.isPrimary') AS BIT),0);
         SET @pMode              = ISNULL(JSON_VALUE(@pJson,'$.fanOut.mode'),'INDIVIDUAL');
@@ -693,9 +804,18 @@ BEGIN
         SET @pDisplayNameSrcVal = JSON_VALUE(@pJson,'$.fanOut.displayNameSourceValue');
         SET @pFileNameSrc       = JSON_VALUE(@pJson,'$.fanOut.fileNameSource');
         SET @pFileNameSrcVal    = JSON_VALUE(@pJson,'$.fanOut.fileNameSourceValue');
-        SET @pFileNameTemplate  = JSON_VALUE(@pJson,'$.fanOut.fileNameTemplate');
+        -- Backward compat: fileNameTemplate maps to STATIC fileNameSource
+        IF @pFileNameSrc IS NULL AND JSON_VALUE(@pJson,'$.fanOut.fileNameTemplate') IS NOT NULL
+        BEGIN
+            SET @pFileNameSrc    = 'STATIC';
+            SET @pFileNameSrcVal = JSON_VALUE(@pJson,'$.fanOut.fileNameTemplate');
+        END;
         SET @pFolderSrc         = JSON_VALUE(@pJson,'$.fanOut.folderSource');
         SET @pFolderSrcVal      = JSON_VALUE(@pJson,'$.fanOut.folderSourceValue');
+        SET @pSubjectSrc        = JSON_VALUE(@pJson,'$.fanOut.subjectSource');
+        SET @pSubjectSrcVal     = JSON_VALUE(@pJson,'$.fanOut.subjectSourceValue');
+        SET @pBodySrc           = JSON_VALUE(@pJson,'$.fanOut.bodySource');
+        SET @pBodySrcVal        = JSON_VALUE(@pJson,'$.fanOut.bodySourceValue');
 
         IF EXISTS (SELECT 1 FROM [schdl].[DocumentParameter]
                    WHERE ReportID=@DocID AND ParameterName=@pName)
@@ -710,12 +830,6 @@ BEGIN
         SELECT @pParamID=ParameterID FROM [schdl].[DocumentParameter]
         WHERE  ReportID=@DocID AND ParameterName=@pName;
 
-        -- If this parameter no longer has a dispatch block, remove any stale config
-        IF @pHasDispatch=0
-            DELETE FROM [schdl].[ParameterDispatchConfig] WHERE ParameterID=@pParamID;
-
-        -- If this parameter no longer has a dispatch block, remove any stale config
-        -- so old delivery method / mode settings don't carry forward on re-register
         IF @pHasDispatch=0
             DELETE FROM [schdl].[ParameterDispatchConfig] WHERE ParameterID=@pParamID;
 
@@ -731,22 +845,29 @@ BEGIN
                        DisplayNameSourceValue= @pDisplayNameSrcVal,
                        FileNameSource        = @pFileNameSrc,
                        FileNameSourceValue   = @pFileNameSrcVal,
-                       FileNameTemplate      = @pFileNameTemplate,
                        FolderSource          = @pFolderSrc,
-                       FolderSourceValue     = @pFolderSrcVal
+                       FolderSourceValue     = @pFolderSrcVal,
+                       SubjectSource         = @pSubjectSrc,
+                       SubjectSourceValue    = @pSubjectSrcVal,
+                       BodySource            = @pBodySrc,
+                       BodySourceValue       = @pBodySrcVal
                 WHERE  ParameterID=@pParamID;
             ELSE
                 INSERT INTO [schdl].[ParameterDispatchConfig]
                     (ParameterID,IsPrimaryDispatchKey,DispatchMode,
                      EmailSource,EmailSourceValue,
                      DisplayNameSource,DisplayNameSourceValue,
-                     FileNameSource,FileNameSourceValue,FileNameTemplate,
-                     FolderSource,FolderSourceValue)
+                     FileNameSource,FileNameSourceValue,
+                     FolderSource,FolderSourceValue,
+                     SubjectSource,SubjectSourceValue,
+                     BodySource,BodySourceValue)
                 VALUES(@pParamID,@pIsPrimary,@pMode,
                        @pEmailSrc,@pEmailSrcVal,
                        @pDisplayNameSrc,@pDisplayNameSrcVal,
-                       @pFileNameSrc,@pFileNameSrcVal,@pFileNameTemplate,
-                       @pFolderSrc,@pFolderSrcVal);
+                       @pFileNameSrc,@pFileNameSrcVal,
+                       @pFolderSrc,@pFolderSrcVal,
+                       @pSubjectSrc,@pSubjectSrcVal,
+                       @pBodySrc,@pBodySrcVal);
         END;
 
         SET @pIndex += 1;
@@ -758,41 +879,49 @@ BEGIN
 
     -- Parse @DispatchJson into schedule-level delivery variables
     DECLARE
-        @sDeliveryMethod     NVARCHAR(10)   = ISNULL(JSON_VALUE(@DispatchJson,'$.deliveryMethod'),'EMAIL'),
-        @sEmailSource        NVARCHAR(20)   = JSON_VALUE(@DispatchJson,'$.emailSource'),
-        @sEmailSourceValue   NVARCHAR(1000) = JSON_VALUE(@DispatchJson,'$.emailSourceValue'),
-        @sFileNameTemplate   NVARCHAR(500)  = JSON_VALUE(@DispatchJson,'$.fileNameTemplate'),
-        @sFileNameSource     NVARCHAR(20)   = JSON_VALUE(@DispatchJson,'$.fileNameSource'),
-        @sFileNameSourceValue NVARCHAR(1000)= JSON_VALUE(@DispatchJson,'$.fileNameSourceValue'),
-        @sFolderSource       NVARCHAR(20)   = JSON_VALUE(@DispatchJson,'$.folderSource'),
-        @sFolderSourceValue  NVARCHAR(1000) = JSON_VALUE(@DispatchJson,'$.folderSourceValue');
+        @sDeliveryMethod      NVARCHAR(10)   = ISNULL(JSON_VALUE(@DispatchJson,'$.deliveryMethod'),'EMAIL'),
+        @sEmailSource         NVARCHAR(20)   = ISNULL(JSON_VALUE(@DispatchJson,'$.emailSource'),'STATIC'),
+        @sEmailSourceValue    NVARCHAR(MAX)  = JSON_VALUE(@DispatchJson,'$.emailSourceValue'),
+        @sSubjectSource       NVARCHAR(20)   = ISNULL(JSON_VALUE(@DispatchJson,'$.subjectSource'),'STATIC'),
+        @sSubjectSourceValue  NVARCHAR(MAX)  = JSON_VALUE(@DispatchJson,'$.subjectSourceValue'),
+        @sBodySource          NVARCHAR(20)   = ISNULL(JSON_VALUE(@DispatchJson,'$.bodySource'),'STATIC'),
+        @sBodySourceValue     NVARCHAR(MAX)  = JSON_VALUE(@DispatchJson,'$.bodySourceValue'),
+        @sFileNameSource      NVARCHAR(20)   = JSON_VALUE(@DispatchJson,'$.fileNameSource'),
+        @sFileNameSourceValue NVARCHAR(MAX)  = JSON_VALUE(@DispatchJson,'$.fileNameSourceValue'),
+        @sFolderSource        NVARCHAR(20)   = JSON_VALUE(@DispatchJson,'$.folderSource'),
+        @sFolderSourceValue   NVARCHAR(MAX)  = JSON_VALUE(@DispatchJson,'$.folderSourceValue');
 
     IF EXISTS (SELECT 1 FROM [schdl].[Schedule] WHERE ScheduleName=@ScheduleName)
         UPDATE [schdl].[Schedule]
         SET    ReportID=@DocID,FrequencyType=@FrequencyType,RunTime=@RunTime,
                DayOfWeek=@DayOfWeek,DayOfMonth=@DayOfMonth,IntervalMinutes=@IntervalMinutes,
                WindowStart=@WindowStart,WindowEnd=@WindowEnd,StartDate=@StartDate,
-               EndDate=@EndDate,Subject=@Subject,BodyTemplate=@BodyTemplate,
+               EndDate=@EndDate,
                DeliveryMethod=@sDeliveryMethod,
                EmailSource=@sEmailSource,EmailSourceValue=@sEmailSourceValue,
-               FileNameTemplate=@sFileNameTemplate,FileNameSource=@sFileNameSource,
-               FileNameSourceValue=@sFileNameSourceValue,
+               SubjectSource=@sSubjectSource,SubjectSourceValue=@sSubjectSourceValue,
+               BodySource=@sBodySource,BodySourceValue=@sBodySourceValue,
+               FileNameSource=@sFileNameSource,FileNameSourceValue=@sFileNameSourceValue,
                FolderSource=@sFolderSource,FolderSourceValue=@sFolderSourceValue,
                NextRunAt=NULL,
-               ModifiedAt=SYSUTCDATETIME()
+               ModifiedAt=GETDATE()
         WHERE  ScheduleName=@ScheduleName;
     ELSE
         INSERT INTO [schdl].[Schedule]
             (ScheduleName,ReportID,FrequencyType,RunTime,DayOfWeek,DayOfMonth,
-             IntervalMinutes,WindowStart,WindowEnd,StartDate,EndDate,Subject,BodyTemplate,
+             IntervalMinutes,WindowStart,WindowEnd,StartDate,EndDate,
              DeliveryMethod,EmailSource,EmailSourceValue,
-             FileNameTemplate,FileNameSource,FileNameSourceValue,
+             SubjectSource,SubjectSourceValue,
+             BodySource,BodySourceValue,
+             FileNameSource,FileNameSourceValue,
              FolderSource,FolderSourceValue)
         VALUES
             (@ScheduleName,@DocID,@FrequencyType,@RunTime,@DayOfWeek,@DayOfMonth,
-             @IntervalMinutes,@WindowStart,@WindowEnd,@StartDate,@EndDate,@Subject,@BodyTemplate,
+             @IntervalMinutes,@WindowStart,@WindowEnd,@StartDate,@EndDate,
              @sDeliveryMethod,@sEmailSource,@sEmailSourceValue,
-             @sFileNameTemplate,@sFileNameSource,@sFileNameSourceValue,
+             @sSubjectSource,@sSubjectSourceValue,
+             @sBodySource,@sBodySourceValue,
+             @sFileNameSource,@sFileNameSourceValue,
              @sFolderSource,@sFolderSourceValue);
 
     SELECT @ScheduleID=ScheduleID FROM [schdl].[Schedule] WHERE ScheduleName=@ScheduleName;
@@ -810,7 +939,6 @@ BEGIN
             SELECT @pParamID=ParameterID FROM [schdl].[DocumentParameter]
             WHERE  ReportID=@DocID AND ParameterName=@pName;
 
-            -- Re-read valueQuery from JSON in this second pass
             SET @pVQ2 = JSON_VALUE(
                 JSON_QUERY(@ParametersJson,'$['+CAST(@pIndex AS NVARCHAR)+']'),
                 '$.valueQuery');
@@ -829,38 +957,36 @@ BEGIN
         SET @pIndex+=1;
     END;
 
-    -- 5. UPSERT Static Recipients
+    -- 5. Standing Recipients (CC/BCC only) — delete and re-insert
+    DELETE FROM [schdl].[ScheduleStandingRecipient] WHERE ScheduleID = @ScheduleID;
+
     IF @RecipientsJson IS NOT NULL AND @RecipientsJson <> '[]'
     BEGIN
         DECLARE
-            @rName NVARCHAR(255),@rEmail NVARCHAR(320),@rRole NVARCHAR(10),
-            @rID INT,@rIndex INT=0,@rCount INT,
-            @rJson NVARCHAR(MAX);
+            @rEmail  NVARCHAR(320),
+            @rRole   NVARCHAR(5),
+            @rFanOut BIT,
+            @rIndex  INT = 0,
+            @rCount  INT;
 
-        SELECT @rCount=COUNT(*) FROM OPENJSON(@RecipientsJson);
+        SELECT @rCount = COUNT(*) FROM OPENJSON(@RecipientsJson);
 
         WHILE @rIndex < @rCount
         BEGIN
-            SET @rJson =
-                JSON_QUERY(@RecipientsJson,'$['+CAST(@rIndex AS NVARCHAR)+']');
-            SET @rName  = JSON_VALUE(@rJson,'$.name');
-            SET @rEmail = JSON_VALUE(@rJson,'$.email');
-            SET @rRole  = ISNULL(JSON_VALUE(@rJson,'$.role'),'TO');
+            SET @rEmail  = JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].email');
+            SET @rRole   = ISNULL(JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].role'), 'CC');
+            SET @rFanOut = ISNULL(
+                TRY_CAST(JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].includeInFanOut') AS BIT),
+                0);
 
-            IF EXISTS (SELECT 1 FROM [schdl].[Recipient] WHERE EmailAddress=@rEmail)
-                SELECT @rID=RecipientID FROM [schdl].[Recipient] WHERE EmailAddress=@rEmail;
-            ELSE
-            BEGIN
-                INSERT INTO [schdl].[Recipient](RecipientName,EmailAddress) VALUES(@rName,@rEmail);
-                SET @rID=SCOPE_IDENTITY();
-            END;
+            -- Only CC/BCC go in ScheduleStandingRecipient
+            IF @rEmail IS NOT NULL AND LTRIM(RTRIM(@rEmail)) <> '' AND @rRole IN ('CC','BCC')
+                INSERT INTO [schdl].[ScheduleStandingRecipient]
+                    (ScheduleID, EmailAddress, RecipientRole, IncludeInFanOut)
+                VALUES
+                    (@ScheduleID, @rEmail, @rRole, @rFanOut);
 
-            IF NOT EXISTS (SELECT 1 FROM [schdl].[ScheduleRecipient]
-                           WHERE ScheduleID=@ScheduleID AND RecipientID=@rID AND RecipientRole=@rRole)
-                INSERT INTO [schdl].[ScheduleRecipient](ScheduleID,RecipientID,RecipientRole)
-                VALUES(@ScheduleID,@rID,@rRole);
-
-            SET @rIndex+=1;
+            SET @rIndex = @rIndex + 1;
         END;
     END;
 
@@ -871,17 +997,18 @@ BEGIN
         d.ReportID, d.DocumentName, d.ReportEndpoint,
         s.ScheduleID, s.ScheduleName, s.FrequencyType,
         s.RunTime, s.DayOfWeek, s.DayOfMonth, s.IntervalMinutes, s.NextRunAt,
-        (SELECT COUNT(*) FROM [schdl].[ScheduleParameter]  WHERE ScheduleID=s.ScheduleID) AS ParameterCount,
-        (SELECT COUNT(*) FROM [schdl].[ScheduleRecipient]  WHERE ScheduleID=s.ScheduleID) AS RecipientCount,
+        (SELECT COUNT(*) FROM [schdl].[ScheduleParameter]         WHERE ScheduleID=s.ScheduleID) AS ParameterCount,
+        (SELECT COUNT(*) FROM [schdl].[ScheduleStandingRecipient] WHERE ScheduleID=s.ScheduleID) AS RecipientCount,
         (SELECT COUNT(*) FROM [schdl].[ParameterDispatchConfig] dc
             JOIN [schdl].[DocumentParameter] dp ON dp.ParameterID=dc.ParameterID
-         WHERE dp.ReportID=d.ReportID)                                                 AS DispatchConfigCount,
-        [schdl].[fn_FetchDocumentId](d.DocumentName)                                    AS ResolvedDocumentId
+         WHERE dp.ReportID=d.ReportID)                                                           AS DispatchConfigCount,
+        [schdl].[fn_FetchDocumentId](d.DocumentName)                                             AS ResolvedDocumentId
     FROM [schdl].[Document] d
     JOIN [schdl].[Schedule] s ON s.ReportID=d.ReportID
     WHERE d.DocumentName=@DocumentName AND s.ScheduleName=@ScheduleName;
 END;
 GO
+
 
 -- ============================================================
 --  SECTION 4  EXECUTION ENGINE
@@ -897,22 +1024,24 @@ CREATE PROCEDURE [schdl].[usp_BuildDispatchQueue]
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @Today DATE = CAST(ISNULL(@AsOf,SYSUTCDATETIME()) AS DATE);
+    DECLARE @Today DATE = CAST(ISNULL(@AsOf,GETDATE()) AS DATE);
 
     DECLARE
         @DocID INT, @DocumentName NVARCHAR(255),
         @OutputFormat NVARCHAR(20), @Language INT,
         @Confidentiality NVARCHAR(50),
-        @EmailSubject NVARCHAR(500), @EmailBody NVARCHAR(MAX),
-        -- Schedule-level delivery config (from @DispatchJson at register time)
+        -- Schedule-level delivery config
         @sDeliveryMethod      NVARCHAR(10),
         @sEmailSource         NVARCHAR(20),
-        @sEmailSourceValue    NVARCHAR(1000),
-        @sFileNameTemplate    NVARCHAR(500),
+        @sEmailSourceValue    NVARCHAR(MAX),
+        @sSubjectSource       NVARCHAR(20),
+        @sSubjectSourceValue  NVARCHAR(MAX),
+        @sBodySource          NVARCHAR(20),
+        @sBodySourceValue     NVARCHAR(MAX),
         @sFileNameSource      NVARCHAR(20),
-        @sFileNameSourceValue NVARCHAR(1000),
+        @sFileNameSourceValue NVARCHAR(MAX),
         @sFolderSource        NVARCHAR(20),
-        @sFolderSourceValue   NVARCHAR(1000);
+        @sFolderSourceValue   NVARCHAR(MAX);
 
     SELECT
         @DocID                = d.ReportID,
@@ -920,12 +1049,13 @@ BEGIN
         @OutputFormat         = d.DefaultOutputFormat,
         @Language             = d.DefaultLanguage,
         @Confidentiality      = d.DefaultConfidentiality,
-        @EmailSubject         = s.Subject,
-        @EmailBody            = s.BodyTemplate,
         @sDeliveryMethod      = ISNULL(s.DeliveryMethod, 'EMAIL'),
         @sEmailSource         = s.EmailSource,
         @sEmailSourceValue    = s.EmailSourceValue,
-        @sFileNameTemplate    = s.FileNameTemplate,
+        @sSubjectSource       = s.SubjectSource,
+        @sSubjectSourceValue  = s.SubjectSourceValue,
+        @sBodySource          = s.BodySource,
+        @sBodySourceValue     = s.BodySourceValue,
         @sFileNameSource      = s.FileNameSource,
         @sFileNameSourceValue = s.FileNameSourceValue,
         @sFolderSource        = s.FolderSource,
@@ -934,44 +1064,13 @@ BEGIN
     JOIN [schdl].[Document] d ON d.ReportID=s.ReportID
     WHERE s.ScheduleID=@ScheduleID;
 
-    -- Resolve {{REPORTNAME}} in Subject and BodyTemplate first.
-    -- This is not a date token — it resolves to the DocumentName.
-    IF @EmailSubject  LIKE '%{{REPORTNAME}}%'
-        SET @EmailSubject  = REPLACE(@EmailSubject,  '{{REPORTNAME}}', @DocumentName);
-    IF @EmailBody LIKE '%{{REPORTNAME}}%'
-        SET @EmailBody = REPLACE(@EmailBody, '{{REPORTNAME}}', @DocumentName);
-
-    -- Resolve date tokens in Subject and BodyTemplate.
-    -- Iterates every active token and replaces any occurrence in the strings.
-    -- Only tokens that actually appear are touched; others are skipped cheaply.
-    DECLARE @tkToken NVARCHAR(100), @tkResolved NVARCHAR(500);
-
-    DECLARE tk CURSOR LOCAL FAST_FORWARD FOR
-        SELECT Token,
-               [schdl].[fn_ResolveDateToken](Token, @Today)
-        FROM   [schdl].[DateToken]
-        WHERE  IsActive = 1;
-
-    OPEN tk; FETCH NEXT FROM tk INTO @tkToken, @tkResolved;
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        IF @EmailSubject LIKE '%' + @tkToken + '%'
-            SET @EmailSubject = REPLACE(@EmailSubject, @tkToken, @tkResolved);
-        IF @EmailBody LIKE '%' + @tkToken + '%'
-            SET @EmailBody = REPLACE(@EmailBody, @tkToken, @tkResolved);
-        FETCH NEXT FROM tk INTO @tkToken, @tkResolved;
-    END;
-    CLOSE tk; DEALLOCATE tk;
-
-    -- Resolve documentId live
+    -- Resolve DocumentID
     DECLARE @ResolvedDocId NVARCHAR(100) = [schdl].[fn_FetchDocumentId](@DocumentName);
 
-    -- Step 1: Shred each parameter's pipe-delimited value into individual token segments,
-    --         resolve each segment, then re-aggregate back to a pipe-delimited string.
-    --         Done in a separate temp table to avoid nested aggregate errors.
-    -- Resolve dynamic parameter values where ParameterValueQuery is set.
-    -- Execute each query and collect results as a pipe-delimited string,
-    -- then use that in place of the static ParameterValue.
+    -- ── Helper: resolve a single string field (STATIC or DYNAMIC_SQL) ─────────
+    -- Used inline below for each field. No cursor needed for single-value fields.
+
+    -- ── Step 1: Resolve dynamic parameter values ───────────────────────────────
     DROP TABLE IF EXISTS #DynVals;
     CREATE TABLE #DynVals (
         ParameterID     INT           NOT NULL,
@@ -996,35 +1095,40 @@ BEGIN
     WHILE @@FETCH_STATUS = 0
     BEGIN
         SET @dvResult = NULL;
-
-        -- Execute the query and aggregate results into a pipe-delimited string
         SET @aggSQL =
-            N'SELECT @r = STRING_AGG([Value], ''|'') FROM (' + @dvQuery + N') AS _q';
-
+            N'SELECT @r = STRING_AGG([Value], ''|'')' +
+            N' WITHIN GROUP (ORDER BY [Value]) FROM (' + @dvQuery + N') AS _q';
         BEGIN TRY
-            EXEC sp_executesql @aggSQL,
-                N'@r NVARCHAR(MAX) OUTPUT',
-                @r = @dvResult OUTPUT;
+            EXEC sp_executesql @aggSQL, N'@r NVARCHAR(MAX) OUTPUT', @r = @dvResult OUTPUT;
         END TRY
         BEGIN CATCH
-            -- If query fails, fall back to static value and log the error
-            SET @dvResult = @dvStatic;
-            INSERT INTO [schdl].[ExecutionLog] (ScheduleID, Status, ErrorMessage)
-            VALUES (@ScheduleID, 'SKIPPED',
-                'ParameterValueQuery failed for ParameterID ' + CAST(@dvParamID AS NVARCHAR)
-                + ': ' + ERROR_MESSAGE());
+            -- Dynamic query failed — fail entire schedule
+            UPDATE [schdl].[ExecutionLog]
+            SET    Status='FAILED',
+                   ErrorMessage='ParameterValueQuery failed for ParameterID '
+                       + CAST(@dvParamID AS NVARCHAR) + ': ' + ERROR_MESSAGE()
+            WHERE  LogID=@LogID;
+            DELETE FROM [schdl].[DispatchQueue] WHERE LogID=@LogID;
+            RETURN;
         END CATCH;
 
-        INSERT INTO #DynVals (ParameterID, ResolvedValue)
-        VALUES (@dvParamID, ISNULL(@dvResult, @dvStatic));
+        IF @dvResult IS NULL
+        BEGIN
+            UPDATE [schdl].[ExecutionLog]
+            SET    Status='FAILED',
+                   ErrorMessage='ParameterValueQuery returned no rows for ParameterID '
+                       + CAST(@dvParamID AS NVARCHAR)
+            WHERE  LogID=@LogID;
+            DELETE FROM [schdl].[DispatchQueue] WHERE LogID=@LogID;
+            RETURN;
+        END;
 
+        INSERT INTO #DynVals (ParameterID, ResolvedValue) VALUES (@dvParamID, @dvResult);
         FETCH NEXT FROM dv_cur INTO @dvParamID, @dvQuery, @dvStatic;
     END;
     CLOSE dv_cur; DEALLOCATE dv_cur;
 
-    -- Pre-join #DynVals so the resolved value is available before CROSS APPLY.
-    -- STRING_SPLIT cannot reference a column from a later JOIN —
-    -- the value must be determined before the APPLY executes.
+    -- ── Step 2: Resolve and shred parameter values ────────────────────────────
     DROP TABLE IF EXISTS #Raw;
     SELECT
         dp.ParameterID,
@@ -1033,26 +1137,22 @@ BEGIN
         dp.IsRequired,
         dp.SortOrder,
         ISNULL(dc.IsPrimaryDispatchKey, 0)      AS IsPrimary,
-        ISNULL(dc.DispatchMode,   'INDIVIDUAL') AS DispatchMode,
-        ISNULL(dc.EmailSource,    'STATIC')     AS EmailSource,
-        dc.EmailSourceValue,
-        dc.DisplayNameSource,
-        dc.DisplayNameSourceValue,
-        dc.FileNameSource,
-        dc.FileNameSourceValue,
-        dc.FileNameTemplate,
-        dc.FolderSource,
-        dc.FolderSourceValue,
+        ISNULL(dc.DispatchMode, 'COMBINED')     AS DispatchMode,
+        dc.EmailSource,         dc.EmailSourceValue,
+        dc.DisplayNameSource,   dc.DisplayNameSourceValue,
+        dc.FileNameSource,      dc.FileNameSourceValue,
+        dc.FolderSource,        dc.FolderSourceValue,
+        dc.SubjectSource,       dc.SubjectSourceValue,
+        dc.BodySource,          dc.BodySourceValue,
         CASE
             WHEN dp.DataType = 'date'
             THEN [schdl].[fn_ResolveDateToken](TRIM(seg.value), @Today)
             ELSE TRIM(seg.value)
-        END                                                     AS ResolvedSegment
+        END                                       AS ResolvedSegment
     INTO #Raw
     FROM   [schdl].[ScheduleParameter]            sp
     JOIN   [schdl].[DocumentParameter]            dp  ON dp.ParameterID  = sp.ParameterID
     LEFT   JOIN [schdl].[ParameterDispatchConfig]  dc ON dc.ParameterID  = dp.ParameterID
-    -- Resolve the effective value (dynamic overrides static) BEFORE STRING_SPLIT
     CROSS  APPLY (
         SELECT ISNULL(dv.ResolvedValue, sp.ParameterValue) AS EffectiveValue
         FROM   (SELECT NULL AS _) AS _dummy
@@ -1063,25 +1163,16 @@ BEGIN
 
     DROP TABLE IF EXISTS #DynVals;
 
-    -- Step 2: Re-aggregate resolved segments back into one pipe-delimited ResolvedValue per parameter
     DROP TABLE IF EXISTS #P;
     SELECT
-        ParameterID,
-        ParameterName,
-        DataType,
-        IsRequired,
-        SortOrder,
-        IsPrimary,
-        DispatchMode,
-        EmailSource,
-        EmailSourceValue,
-        DisplayNameSource,
-        DisplayNameSourceValue,
-        FileNameSource,
-        FileNameSourceValue,
-        FileNameTemplate,
-        FolderSource,
-        FolderSourceValue,
+        ParameterID, ParameterName, DataType, IsRequired, SortOrder,
+        IsPrimary, DispatchMode,
+        EmailSource,       EmailSourceValue,
+        DisplayNameSource, DisplayNameSourceValue,
+        FileNameSource,    FileNameSourceValue,
+        FolderSource,      FolderSourceValue,
+        SubjectSource,     SubjectSourceValue,
+        BodySource,        BodySourceValue,
         STRING_AGG(ResolvedSegment, '|') WITHIN GROUP (ORDER BY ResolvedSegment) AS ResolvedValue
     INTO #P
     FROM  #Raw
@@ -1089,180 +1180,157 @@ BEGIN
              IsPrimary, DispatchMode,
              EmailSource, EmailSourceValue,
              DisplayNameSource, DisplayNameSourceValue,
-             FileNameSource, FileNameSourceValue, FileNameTemplate,
-             FolderSource, FolderSourceValue;
+             FileNameSource, FileNameSourceValue,
+             FolderSource, FolderSourceValue,
+             SubjectSource, SubjectSourceValue,
+             BodySource, BodySourceValue;
 
     DROP TABLE IF EXISTS #Raw;
 
-    -- ── Schedule-level CC / BCC (needed in both branches below) ──
-    DECLARE @Cc NVARCHAR(MAX) = (
-        SELECT STRING_AGG(r.EmailAddress, ',') WITHIN GROUP (ORDER BY r.EmailAddress)
-        FROM   [schdl].[ScheduleRecipient] sr
-        JOIN   [schdl].[Recipient]         r  ON r.RecipientID = sr.RecipientID
-        WHERE  sr.ScheduleID   = @ScheduleID
-          AND  sr.RecipientRole = 'CC'
-          AND  r.IsActive       = 1);
+    -- ── Standing CC/BCC recipients ────────────────────────────────────────────
+    DECLARE
+        @CcAll    NVARCHAR(MAX),  @CcFanOut  NVARCHAR(MAX),
+        @BccAll   NVARCHAR(MAX),  @BccFanOut NVARCHAR(MAX);
 
-    DECLARE @Bcc NVARCHAR(MAX) = (
-        SELECT STRING_AGG(r.EmailAddress, ',') WITHIN GROUP (ORDER BY r.EmailAddress)
-        FROM   [schdl].[ScheduleRecipient] sr
-        JOIN   [schdl].[Recipient]         r  ON r.RecipientID = sr.RecipientID
-        WHERE  sr.ScheduleID   = @ScheduleID
-          AND  sr.RecipientRole = 'BCC'
-          AND  r.IsActive       = 1);
+    SELECT @CcAll    = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    FROM   [schdl].[ScheduleStandingRecipient]
+    WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'CC';
 
-    -- ── NO PARAMETERS — emit one BULK row with parameters:[] ─────
+    SELECT @CcFanOut = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    FROM   [schdl].[ScheduleStandingRecipient]
+    WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'CC' AND IncludeInFanOut = 1;
+
+    SELECT @BccAll   = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    FROM   [schdl].[ScheduleStandingRecipient]
+    WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'BCC';
+
+    SELECT @BccFanOut = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    FROM   [schdl].[ScheduleStandingRecipient]
+    WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'BCC' AND IncludeInFanOut = 1;
+
+    -- ── Inline resolver helper (used multiple times below) ────────────────────
+    -- Resolves a STATIC or DYNAMIC_SQL source into a string value.
+    -- @src, @srcVal in → @out out. {VALUE} substituted with @fanoutVal if provided.
+    -- After resolution, fn_ResolveAllTokens is applied and {{DISPLAYNAME}} substituted.
+
+    -- ── NO PARAMETERS — emit one COMBINED row ─────────────────────────────────
     IF NOT EXISTS (SELECT 1 FROM #P)
     BEGIN
         DECLARE
             @npTo       NVARCHAR(MAX),
-            @npFolder   NVARCHAR(1000),
-            @npFileName NVARCHAR(500),
-            @npTok      NVARCHAR(100),
-            @npRes      NVARCHAR(500),
-            @npLvSQL    NVARCHAR(600),
-            @npSfSQL    NVARCHAR(600),
-            @npDynSQL   NVARCHAR(2000);
+            @npSubject  NVARCHAR(MAX),
+            @npBody     NVARCHAR(MAX),
+            @npFolder   NVARCHAR(MAX),
+            @npFileName NVARCHAR(MAX),
+            @npDynSQL   NVARCHAR(MAX);
 
-        -- Resolve combined email TO from Schedule delivery config
+        -- Resolve TO email
         IF @sDeliveryMethod IN ('EMAIL','BOTH')
         BEGIN
             IF @sEmailSource = 'STATIC'
                 SET @npTo = @sEmailSourceValue;
-            ELSE IF @sEmailSource = 'LOOKUP_VIEW'
+            ELSE IF @sEmailSource = 'DYNAMIC_SQL' AND ISNULL(@sEmailSourceValue,'') <> ''
             BEGIN
-                SET @npLvSQL = N'SELECT TOP 1 @e = EmailAddress FROM '
-                    + @sEmailSourceValue + N' WHERE LookupKey = @v';
-                EXEC sp_executesql @npLvSQL,
-                    N'@v NVARCHAR(500), @e NVARCHAR(MAX) OUTPUT',
-                    @v = @DocumentName, @e = @npTo OUTPUT;
-            END
-            ELSE IF @sEmailSource = 'SCALAR_FN'
-            BEGIN
-                SET @npSfSQL = N'SELECT @e = ' + @sEmailSourceValue + N'(@v)';
-                EXEC sp_executesql @npSfSQL,
-                    N'@v NVARCHAR(500), @e NVARCHAR(MAX) OUTPUT',
-                    @v = @DocumentName, @e = @npTo OUTPUT;
-            END
-            ELSE IF @sEmailSource = 'DYNAMIC_SQL'
-            BEGIN
-                SET @npDynSQL = N'SELECT TOP 1 @e = EmailAddress FROM ('
-                    + @sEmailSourceValue + N') AS _q';
-                EXEC sp_executesql @npDynSQL,
-                    N'@e NVARCHAR(MAX) OUTPUT', @e = @npTo OUTPUT;
-            END;
-            -- Append static TO recipients from ScheduleRecipient
-            SELECT @npTo = ISNULL(NULLIF(@npTo,'') + ',', '')
-                + ISNULL(STRING_AGG(r.EmailAddress, ','),'')
-            FROM   [schdl].[ScheduleRecipient] sr
-            JOIN   [schdl].[Recipient] r ON r.RecipientID = sr.RecipientID
-            WHERE  sr.ScheduleID = @ScheduleID AND sr.RecipientRole = 'TO' AND r.IsActive = 1;
-        END;
-
-        -- Resolve folder path from Schedule delivery config
-        IF @sDeliveryMethod IN ('FOLDER','BOTH')
-        BEGIN
-            IF @sFolderSource = 'STATIC'
-                SET @npFolder = @sFolderSourceValue;
-            ELSE IF @sFolderSource = 'LOOKUP_VIEW'
-            BEGIN
-                SET @npLvSQL = N'SELECT TOP 1 @e = FolderPath FROM '
-                    + @sFolderSourceValue + N' WHERE LookupKey = @v';
-                EXEC sp_executesql @npLvSQL,
-                    N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                    @v = @DocumentName, @e = @npFolder OUTPUT;
-            END
-            ELSE IF @sFolderSource = 'SCALAR_FN'
-            BEGIN
-                SET @npSfSQL = N'SELECT @e = ' + @sFolderSourceValue + N'(@v)';
-                EXEC sp_executesql @npSfSQL,
-                    N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                    @v = @DocumentName, @e = @npFolder OUTPUT;
-            END
-            ELSE IF @sFolderSource = 'DYNAMIC_SQL'
-            BEGIN
-                SET @npDynSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
-                    + @sFolderSourceValue + N') AS _q';
-                EXEC sp_executesql @npDynSQL,
-                    N'@e NVARCHAR(1000) OUTPUT', @e = @npFolder OUTPUT;
+                -- STRING_AGG handles both single and multiple row results
+                SET @npDynSQL = N'SELECT @e = STRING_AGG(EmailAddress, '','') WITHIN GROUP (ORDER BY EmailAddress) FROM (' + @sEmailSourceValue + N') AS _q';
+                EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@npTo OUTPUT;
             END;
         END;
 
-        -- Resolve filename from Schedule delivery config (template takes priority over source)
-        IF @sFileNameTemplate IS NOT NULL
+        -- Resolve Subject
+        IF @sSubjectSource = 'STATIC'
+            SET @npSubject = @sSubjectSourceValue;
+        ELSE IF @sSubjectSource = 'DYNAMIC_SQL' AND ISNULL(@sSubjectSourceValue,'') <> ''
         BEGIN
-            SET @npFileName = @sFileNameTemplate;
-            SET @npFileName = REPLACE(@npFileName, '{{REPORTNAME}}', @DocumentName);
-            SET @npFileName = REPLACE(@npFileName, '{{DISPLAYNAME}}', '');
-            DECLARE npt CURSOR LOCAL FAST_FORWARD FOR
-                SELECT Token, [schdl].[fn_ResolveDateToken](Token, @Today)
-                FROM   [schdl].[DateToken] WHERE IsActive = 1;
-            OPEN npt; FETCH NEXT FROM npt INTO @npTok, @npRes;
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                IF @npFileName LIKE '%' + @npTok + '%'
-                    SET @npFileName = REPLACE(@npFileName, @npTok, @npRes);
-                FETCH NEXT FROM npt INTO @npTok, @npRes;
-            END;
-            CLOSE npt; DEALLOCATE npt;
-        END
-        ELSE IF @sFileNameSource = 'STATIC'
+            SET @npDynSQL = N'SELECT TOP 1 @e = Subject FROM (' + @sSubjectSourceValue + N') AS _q';
+            EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@npSubject OUTPUT;
+        END;
+
+        -- Resolve Body
+        IF @sBodySource = 'STATIC'
+            SET @npBody = @sBodySourceValue;
+        ELSE IF @sBodySource = 'DYNAMIC_SQL' AND ISNULL(@sBodySourceValue,'') <> ''
+        BEGIN
+            SET @npDynSQL = N'SELECT TOP 1 @e = Body FROM (' + @sBodySourceValue + N') AS _q';
+            EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@npBody OUTPUT;
+        END;
+
+        -- Resolve FileName
+        IF @sFileNameSource = 'STATIC'
             SET @npFileName = @sFileNameSourceValue;
+        ELSE IF @sFileNameSource = 'DYNAMIC_SQL' AND ISNULL(@sFileNameSourceValue,'') <> ''
+        BEGIN
+            SET @npDynSQL = N'SELECT TOP 1 @e = FileName FROM (' + @sFileNameSourceValue + N') AS _q';
+            EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@npFileName OUTPUT;
+        END;
+
+        -- Resolve FolderPath
+        IF @sFolderSource = 'STATIC'
+            SET @npFolder = @sFolderSourceValue;
+        ELSE IF @sFolderSource = 'DYNAMIC_SQL' AND ISNULL(@sFolderSourceValue,'') <> ''
+        BEGIN
+            SET @npDynSQL = N'SELECT TOP 1 @e = FolderPath FROM (' + @sFolderSourceValue + N') AS _q';
+            EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@npFolder OUTPUT;
+        END;
+
+        -- Apply token resolution to all string fields
+        SET @npSubject  = [schdl].[fn_ResolveAllTokens](@npSubject,  @Today, @DocumentName);
+        SET @npBody     = [schdl].[fn_ResolveAllTokens](@npBody,     @Today, @DocumentName);
+        SET @npFileName = [schdl].[fn_ResolveAllTokens](@npFileName, @Today, @DocumentName);
+        SET @npFolder   = [schdl].[fn_ResolveAllTokens](@npFolder,   @Today, @DocumentName);
 
         DECLARE @npReqJson NVARCHAR(MAX) =
-            '{"documentId":"'    + ISNULL(@ResolvedDocId,'') +
+            '{"documentId":"' + ISNULL(@ResolvedDocId,'') +
             '","outputFormat":"' + @OutputFormat +
-            '","language":'      + CAST(@Language AS NVARCHAR) +
-            ',"parameters":[]'   +
-            ',"confidentiality":"' + @Confidentiality + '"}';
+            '","language":' + CAST(@Language AS NVARCHAR) +
+            ',"parameters":[]' +
+            ',"confidentiality":"' + @Confidentiality + '"}'  ;
 
         INSERT INTO [schdl].[DispatchQueue]
             (LogID,ScheduleID,DispatchType,DeliveryMethod,DispatchKeyValue,
              DisplayName,FileName,RequestJson,
-             ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,
-             FolderPath)
+             ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,FolderPath)
         VALUES
             (@LogID,@ScheduleID,'COMBINED',@sDeliveryMethod,NULL,
              NULL,@npFileName,@npReqJson,
-             ISNULL(@npTo,''),@Cc,@Bcc,@EmailSubject,@EmailBody,
-             @npFolder);
+             ISNULL(@npTo,''),@CcAll,@BccAll,@npSubject,@npBody,@npFolder);
 
-        RETURN;  -- nothing more to do
+        UPDATE [schdl].[ExecutionLog] SET Status='PENDING' WHERE LogID=@LogID;
+        RETURN;
     END;
 
-    -- ── HAS PARAMETERS — normal fan-out path ─────────────────────
+    -- ── HAS PARAMETERS ────────────────────────────────────────────────────────
 
-    -- Identify primary dispatch parameter
     DECLARE
-        @PrimID         INT,              @PrimName       NVARCHAR(100),
+        @PrimID         INT,  @PrimName       NVARCHAR(100),
         @PrimMode       NVARCHAR(12),
-        @PrimEmailSrc   NVARCHAR(20),     @PrimEmailSrcVal NVARCHAR(1000),
-        @PrimDNSrc      NVARCHAR(20),     @PrimDNSrcVal   NVARCHAR(1000),
-        @PrimFNSrc      NVARCHAR(20),     @PrimFNSrcVal   NVARCHAR(1000),
-        @PrimFNTemplate NVARCHAR(500),
-        @PrimFolderSrc  NVARCHAR(20),     @PrimFolderSrcVal NVARCHAR(1000);
-
-    -- Delivery method and combined config come from Schedule, not ParameterDispatchConfig
-    -- @sDeliveryMethod, @sEmailSource, @sFolderSource etc already loaded above
+        @PrimEmailSrc   NVARCHAR(20),  @PrimEmailSrcVal   NVARCHAR(MAX),
+        @PrimDNSrc      NVARCHAR(20),  @PrimDNSrcVal      NVARCHAR(MAX),
+        @PrimFNSrc      NVARCHAR(20),  @PrimFNSrcVal      NVARCHAR(MAX),
+        @PrimFolSrc     NVARCHAR(20),  @PrimFolSrcVal     NVARCHAR(MAX),
+        @PrimSubjSrc    NVARCHAR(20),  @PrimSubjSrcVal    NVARCHAR(MAX),
+        @PrimBodySrc    NVARCHAR(20),  @PrimBodySrcVal    NVARCHAR(MAX);
 
     SELECT TOP 1
-        @PrimID          = ParameterID,     @PrimName        = ParameterName,
-        @PrimMode        = DispatchMode,
-        @PrimEmailSrc    = EmailSource,     @PrimEmailSrcVal = EmailSourceValue,
-        @PrimDNSrc       = DisplayNameSource, @PrimDNSrcVal  = DisplayNameSourceValue,
-        @PrimFNSrc       = FileNameSource,  @PrimFNSrcVal    = FileNameSourceValue,
-        @PrimFNTemplate  = FileNameTemplate,
-        @PrimFolderSrc   = FolderSource,    @PrimFolderSrcVal = FolderSourceValue
+        @PrimID        = ParameterID,   @PrimName      = ParameterName,
+        @PrimMode      = DispatchMode,
+        @PrimEmailSrc  = EmailSource,   @PrimEmailSrcVal   = EmailSourceValue,
+        @PrimDNSrc     = DisplayNameSource, @PrimDNSrcVal  = DisplayNameSourceValue,
+        @PrimFNSrc     = FileNameSource,    @PrimFNSrcVal  = FileNameSourceValue,
+        @PrimFolSrc    = FolderSource,      @PrimFolSrcVal = FolderSourceValue,
+        @PrimSubjSrc   = SubjectSource,     @PrimSubjSrcVal= SubjectSourceValue,
+        @PrimBodySrc   = BodySource,        @PrimBodySrcVal= BodySourceValue
     FROM #P WHERE IsPrimary=1;
 
-    -- Default: first parameter if no explicit primary
     IF @PrimID IS NULL
+    BEGIN
         SELECT TOP 1
-            @PrimID=ParameterID, @PrimName=ParameterName,
-            @PrimMode='INDIVIDUAL'
+            @PrimID   = ParameterID,
+            @PrimName = ParameterName
         FROM #P ORDER BY SortOrder;
+        SET @PrimMode = 'COMBINED';
+    END;
 
-    -- Individual dispatch values (one row per pipe segment of the primary parameter)
     DROP TABLE IF EXISTS #PV;
     SELECT TRIM(value) AS DispatchValue
     INTO   #PV
@@ -1270,67 +1338,47 @@ BEGIN
     CROSS  APPLY STRING_SPLIT(ResolvedValue, '|')
     WHERE  ParameterID = @PrimID;
 
-    -- Step 3: Pre-build the JSON values array for each non-primary parameter.
-    --         STRING_AGG is kept flat (no bracket wrapping inside it) to satisfy
-    --         the SQL Server rule against aggregates containing expressions with
-    --         aggregates. The brackets are applied via UPDATE after the INSERT.
+    -- Build non-primary parameter JSON
     DROP TABLE IF EXISTS #NP;
     SELECT
-        p.ParameterID,
-        p.ParameterName,
-        p.DataType,
-        p.IsRequired,
-        p.SortOrder,
-        p.ResolvedValue,
+        p.ParameterID, p.ParameterName, p.DataType, p.IsRequired, p.SortOrder, p.ResolvedValue,
         STRING_AGG('"' + STRING_ESCAPE(TRIM(seg.value), 'json') + '"', ',')
-            WITHIN GROUP (ORDER BY seg.value)             AS ValuesJson
+            WITHIN GROUP (ORDER BY seg.value) AS ValuesJson
     INTO #NP
-    FROM   #P                                           p
-    CROSS  APPLY STRING_SPLIT(p.ResolvedValue, '|')    seg
+    FROM   #P p
+    CROSS  APPLY STRING_SPLIT(p.ResolvedValue, '|') seg
     WHERE  p.ParameterID <> @PrimID
-    GROUP BY p.ParameterID, p.ParameterName, p.DataType,
-             p.IsRequired, p.SortOrder, p.ResolvedValue;
+    GROUP BY p.ParameterID, p.ParameterName, p.DataType, p.IsRequired, p.SortOrder, p.ResolvedValue;
 
-    -- Wrap with [ ] now that we are outside the aggregate expression
     UPDATE #NP SET ValuesJson = '[' + ValuesJson + ']';
 
-    -- Step 4: Build the non-primary parameter JSON array from #NP
     DECLARE @NonPrimArray NVARCHAR(MAX);
     SELECT @NonPrimArray = STRING_AGG(
-        '{"name":"'   + STRING_ESCAPE(ParameterName, 'json') +
-        '","type":"'  + DataType +
+        '{"name":"' + STRING_ESCAPE(ParameterName, 'json') +
+        '","type":"' + DataType +
         '","values":' + ValuesJson +
-        ',"multiple":'+ CASE WHEN ResolvedValue LIKE '%|%' THEN 'true' ELSE 'false' END +
-        ',"required":'+ CASE WHEN IsRequired = 1 THEN 'true' ELSE 'false' END + '}',
+        ',"multiple":' + CASE WHEN ResolvedValue LIKE '%|%' THEN 'true' ELSE 'false' END +
+        ',"required":' + CASE WHEN IsRequired=1 THEN 'true' ELSE 'false' END + '}',
         ','
     ) WITHIN GROUP (ORDER BY SortOrder)
     FROM #NP;
-
     DROP TABLE IF EXISTS #NP;
 
-    -- INDIVIDUAL rows
+    -- ── INDIVIDUAL rows ───────────────────────────────────────────────────────
     IF @PrimMode IN ('INDIVIDUAL','BOTH')
     BEGIN
         DECLARE
-            @iVal          NVARCHAR(500),
-            @iEmail        NVARCHAR(320),
-            @iDisplayName  NVARCHAR(500),
-            @iFileName     NVARCHAR(500),
-            @iFolderPath   NVARCHAR(1000),
-            @iSafeVal      NVARCHAR(500),
-            @iDynSQL       NVARCHAR(2000),
-            @iPrimJson     NVARCHAR(MAX),
-            @iReqJson      NVARCHAR(MAX),
-            @lvEmailSQL    NVARCHAR(600),
-            @sfEmailSQL    NVARCHAR(600),
-            @lvDNSQL       NVARCHAR(600),
-            @sfDNSQL       NVARCHAR(600),
-            @lvFNSQL       NVARCHAR(600),
-            @sfFNSQL       NVARCHAR(600),
-            @lvFolSQL      NVARCHAR(600),
-            @sfFolSQL      NVARCHAR(600),
-            @fnTok         NVARCHAR(100),
-            @fnRes         NVARCHAR(500);
+            @iVal         NVARCHAR(500),
+            @iSafeVal     NVARCHAR(500),
+            @iEmail       NVARCHAR(MAX),
+            @iDisplayName NVARCHAR(MAX),
+            @iFileName    NVARCHAR(MAX),
+            @iFolderPath  NVARCHAR(MAX),
+            @iSubject     NVARCHAR(MAX),
+            @iBody        NVARCHAR(MAX),
+            @iDynSQL      NVARCHAR(MAX),
+            @iPrimJson    NVARCHAR(MAX),
+            @iReqJson     NVARCHAR(MAX);
 
         DECLARE ic CURSOR LOCAL FAST_FORWARD FOR SELECT DispatchValue FROM #PV;
         OPEN ic; FETCH NEXT FROM ic INTO @iVal;
@@ -1338,336 +1386,287 @@ BEGIN
         BEGIN
             SET @iSafeVal = REPLACE(@iVal, N'''', N'''''');
 
-            -- ── Resolve Email ───────────────────────────────────────
+            -- Resolve Email
             SET @iEmail = NULL;
             IF @sDeliveryMethod IN ('EMAIL','BOTH')
             BEGIN
                 IF @PrimEmailSrc = 'STATIC'
                     SET @iEmail = @PrimEmailSrcVal;
-                ELSE IF @PrimEmailSrc = 'LOOKUP_VIEW'
+                ELSE IF @PrimEmailSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimEmailSrcVal,'') <> ''
                 BEGIN
-                    SET @lvEmailSQL =
-                        N'SELECT TOP 1 @e = EmailAddress FROM '
-                        + @PrimEmailSrcVal + N' WHERE LookupKey = @v';
-                    EXEC sp_executesql @lvEmailSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(320) OUTPUT',
-                        @v=@iVal, @e=@iEmail OUTPUT;
-                END
-                ELSE IF @PrimEmailSrc = 'SCALAR_FN'
-                BEGIN
-                    SET @sfEmailSQL =
-                        N'SELECT @e = ' + @PrimEmailSrcVal + N'(@v)';
-                    EXEC sp_executesql @sfEmailSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(320) OUTPUT',
-                        @v=@iVal, @e=@iEmail OUTPUT;
-                END
-                ELSE IF @PrimEmailSrc = 'DYNAMIC_SQL'
-                BEGIN
-                    SET @iDynSQL = N'SELECT TOP 1 @e = EmailAddress FROM ('
-                        + REPLACE(@PrimEmailSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
-                    EXEC sp_executesql @iDynSQL,
-                        N'@e NVARCHAR(320) OUTPUT', @e=@iEmail OUTPUT;
+                    -- STRING_AGG to handle multiple rows returned by the query
+                    SET @iDynSQL = N'SELECT @e = STRING_AGG(EmailAddress, '','') WITHIN GROUP (ORDER BY EmailAddress) FROM (' +
+                        REPLACE(@PrimEmailSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iEmail OUTPUT;
                 END;
             END;
 
-            -- ── Resolve DisplayName ─────────────────────────────────
+            -- Resolve DisplayName
             SET @iDisplayName = NULL;
-            IF @PrimDNSrc IS NOT NULL
+            IF @PrimDNSrc = 'STATIC' SET @iDisplayName = @PrimDNSrcVal;
+            ELSE IF @PrimDNSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimDNSrcVal,'') <> ''
             BEGIN
-                IF @PrimDNSrc = 'STATIC'
-                    SET @iDisplayName = @PrimDNSrcVal;
-                ELSE IF @PrimDNSrc = 'LOOKUP_VIEW'
-                BEGIN
-                    SET @lvDNSQL =
-                        N'SELECT TOP 1 @e = DisplayName FROM '
-                        + @PrimDNSrcVal + N' WHERE LookupKey = @v';
-                    EXEC sp_executesql @lvDNSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(500) OUTPUT',
-                        @v=@iVal, @e=@iDisplayName OUTPUT;
-                END
-                ELSE IF @PrimDNSrc = 'SCALAR_FN'
-                BEGIN
-                    SET @sfDNSQL =
-                        N'SELECT @e = ' + @PrimDNSrcVal + N'(@v)';
-                    EXEC sp_executesql @sfDNSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(500) OUTPUT',
-                        @v=@iVal, @e=@iDisplayName OUTPUT;
-                END
-                ELSE IF @PrimDNSrc = 'DYNAMIC_SQL'
-                BEGIN
-                    SET @iDynSQL = N'SELECT TOP 1 @e = DisplayName FROM ('
-                        + REPLACE(@PrimDNSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
-                    EXEC sp_executesql @iDynSQL,
-                        N'@e NVARCHAR(500) OUTPUT', @e=@iDisplayName OUTPUT;
-                END;
+                SET @iDynSQL = N'SELECT TOP 1 @e = DisplayName FROM (' +
+                    REPLACE(@PrimDNSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iDisplayName OUTPUT;
             END;
 
-            -- ── Resolve FileName ────────────────────────────────────
-            -- Priority: FileNameTemplate (with {{DISPLAYNAME}} + {{TOKEN}} substitution)
-            --           → FileNameSource resolver
-            --           → NULL (Flowgear uses API default)
+            -- Resolve FileName
             SET @iFileName = NULL;
-            IF @PrimFNTemplate IS NOT NULL
+            IF @PrimFNSrc = 'STATIC'
             BEGIN
-                SET @iFileName = @PrimFNTemplate;
-                -- Replace {{REPORTNAME}} with DocumentName
-                IF @iFileName LIKE '%{{REPORTNAME}}%'
-                    SET @iFileName = REPLACE(@iFileName, '{{REPORTNAME}}', @DocumentName);
-                -- Replace {{DISPLAYNAME}} with resolved display name
-                IF @iDisplayName IS NOT NULL
-                    SET @iFileName = REPLACE(@iFileName, '{{DISPLAYNAME}}', @iDisplayName);
-                -- Replace any {{TOKEN}} in the template
-                -- @fnTok, @fnRes declared above
-                DECLARE fnt CURSOR LOCAL FAST_FORWARD FOR
-                    SELECT Token, [schdl].[fn_ResolveDateToken](Token, @Today)
-                    FROM   [schdl].[DateToken] WHERE IsActive = 1;
-                OPEN fnt; FETCH NEXT FROM fnt INTO @fnTok, @fnRes;
-                WHILE @@FETCH_STATUS = 0
-                BEGIN
-                    IF @iFileName LIKE '%' + @fnTok + '%'
-                        SET @iFileName = REPLACE(@iFileName, @fnTok, @fnRes);
-                    FETCH NEXT FROM fnt INTO @fnTok, @fnRes;
-                END;
-                CLOSE fnt; DEALLOCATE fnt;
+                SET @iFileName = @PrimFNSrcVal;
+                -- Apply {{DISPLAYNAME}} substitution to static filename
+                SET @iFileName = REPLACE(@iFileName, '{{DISPLAYNAME}}', ISNULL(@iDisplayName,''));
+                SET @iFileName = [schdl].[fn_ResolveAllTokens](@iFileName, @Today, @DocumentName);
             END
-            ELSE IF @PrimFNSrc IS NOT NULL
+            ELSE IF @PrimFNSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimFNSrcVal,'') <> ''
             BEGIN
-                IF @PrimFNSrc = 'STATIC'
-                    SET @iFileName = @PrimFNSrcVal;
-                ELSE IF @PrimFNSrc = 'LOOKUP_VIEW'
+                SET @iDynSQL = N'SELECT TOP 1 @e = FileName FROM (' +
+                    REPLACE(@PrimFNSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iFileName OUTPUT;
+                IF @iFileName IS NOT NULL
+                    SET @iFileName = [schdl].[fn_ResolveAllTokens](@iFileName, @Today, @DocumentName);
+            END;
+            -- Fallback: use schedule-level filename for individual rows if no per-entity filename
+            IF @iFileName IS NULL AND @sFileNameSource IS NOT NULL
+            BEGIN
+                IF @sFileNameSource = 'STATIC'
                 BEGIN
-                    SET @lvFNSQL =
-                        N'SELECT TOP 1 @e = FileName FROM '
-                        + @PrimFNSrcVal + N' WHERE LookupKey = @v';
-                    EXEC sp_executesql @lvFNSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(500) OUTPUT',
-                        @v=@iVal, @e=@iFileName OUTPUT;
+                    SET @iFileName = @sFileNameSourceValue;
+                    SET @iFileName = REPLACE(@iFileName, '{{DISPLAYNAME}}', ISNULL(@iDisplayName,''));
+                    SET @iFileName = [schdl].[fn_ResolveAllTokens](@iFileName, @Today, @DocumentName);
                 END
-                ELSE IF @PrimFNSrc = 'SCALAR_FN'
+                ELSE IF @sFileNameSource = 'DYNAMIC_SQL' AND ISNULL(@sFileNameSourceValue,'') <> ''
                 BEGIN
-                    SET @sfFNSQL =
-                        N'SELECT @e = ' + @PrimFNSrcVal + N'(@v)';
-                    EXEC sp_executesql @sfFNSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(500) OUTPUT',
-                        @v=@iVal, @e=@iFileName OUTPUT;
-                END
-                ELSE IF @PrimFNSrc = 'DYNAMIC_SQL'
-                BEGIN
-                    SET @iDynSQL = N'SELECT TOP 1 @e = FileName FROM ('
-                        + REPLACE(@PrimFNSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
-                    EXEC sp_executesql @iDynSQL,
-                        N'@e NVARCHAR(500) OUTPUT', @e=@iFileName OUTPUT;
+                    SET @iDynSQL = N'SELECT TOP 1 @e = FileName FROM (' +
+                        REPLACE(@sFileNameSourceValue, '{VALUE}', @iSafeVal) + N') AS _q';
+                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iFileName OUTPUT;
+                    IF @iFileName IS NOT NULL
+                        SET @iFileName = [schdl].[fn_ResolveAllTokens](@iFileName, @Today, @DocumentName);
                 END;
             END;
 
-            -- ── Resolve FolderPath ──────────────────────────────────
+            -- Resolve FolderPath (per-entity, with fallback to schedule-level)
             SET @iFolderPath = NULL;
-            IF @sDeliveryMethod IN ('FOLDER','BOTH') AND @PrimFolderSrc IS NOT NULL
+            IF @sDeliveryMethod IN ('FOLDER','BOTH')
             BEGIN
-                IF @PrimFolderSrc = 'STATIC'
-                    SET @iFolderPath = @PrimFolderSrcVal;
-                ELSE IF @PrimFolderSrc = 'LOOKUP_VIEW'
+                IF @PrimFolSrc = 'STATIC'
+                    SET @iFolderPath = @PrimFolSrcVal;
+                ELSE IF @PrimFolSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimFolSrcVal,'') <> ''
                 BEGIN
-                    SET @lvFolSQL =
-                        N'SELECT TOP 1 @e = FolderPath FROM '
-                        + @PrimFolderSrcVal + N' WHERE LookupKey = @v';
-                    EXEC sp_executesql @lvFolSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                        @v=@iVal, @e=@iFolderPath OUTPUT;
-                END
-                ELSE IF @PrimFolderSrc = 'SCALAR_FN'
+                    SET @iDynSQL = N'SELECT TOP 1 @e = FolderPath FROM (' +
+                        REPLACE(@PrimFolSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iFolderPath OUTPUT;
+                END;
+                -- Fallback to schedule-level folder (INHERIT mode)
+                IF @iFolderPath IS NULL AND @sFolderSource IS NOT NULL
                 BEGIN
-                    SET @sfFolSQL =
-                        N'SELECT @e = ' + @PrimFolderSrcVal + N'(@v)';
-                    EXEC sp_executesql @sfFolSQL,
-                        N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                        @v=@iVal, @e=@iFolderPath OUTPUT;
-                END
-                ELSE IF @PrimFolderSrc = 'DYNAMIC_SQL'
+                    IF @sFolderSource = 'STATIC'
+                        SET @iFolderPath = @sFolderSourceValue;
+                    ELSE IF @sFolderSource = 'DYNAMIC_SQL' AND ISNULL(@sFolderSourceValue,'') <> ''
+                    BEGIN
+                        SET @iDynSQL = N'SELECT TOP 1 @e = FolderPath FROM (' +
+                            REPLACE(@sFolderSourceValue, '{VALUE}', @iSafeVal) + N') AS _q';
+                        EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iFolderPath OUTPUT;
+                    END;
+                END;
+                IF @iFolderPath IS NOT NULL
+                    SET @iFolderPath = [schdl].[fn_ResolveAllTokens](@iFolderPath, @Today, @DocumentName);
+            END;
+
+            -- Resolve Subject (per-entity override, fallback to schedule-level)
+            SET @iSubject = NULL;
+            IF @PrimSubjSrc = 'STATIC'
+                SET @iSubject = @PrimSubjSrcVal;
+            ELSE IF @PrimSubjSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimSubjSrcVal,'') <> ''
+            BEGIN
+                SET @iDynSQL = N'SELECT TOP 1 @e = Subject FROM (' +
+                    REPLACE(@PrimSubjSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iSubject OUTPUT;
+            END;
+            -- Fallback to schedule-level subject
+            IF @iSubject IS NULL
+            BEGIN
+                IF @sSubjectSource = 'STATIC'
+                    SET @iSubject = @sSubjectSourceValue;
+                ELSE IF @sSubjectSource = 'DYNAMIC_SQL' AND ISNULL(@sSubjectSourceValue,'') <> ''
                 BEGIN
-                    SET @iDynSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
-                        + REPLACE(@PrimFolderSrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
-                    EXEC sp_executesql @iDynSQL,
-                        N'@e NVARCHAR(1000) OUTPUT', @e=@iFolderPath OUTPUT;
+                    SET @iDynSQL = N'SELECT TOP 1 @e = Subject FROM (' +
+                        REPLACE(@sSubjectSourceValue, '{VALUE}', @iSafeVal) + N') AS _q';
+                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iSubject OUTPUT;
                 END;
             END;
 
-            -- ── Build RequestJson and insert ────────────────────────
+            -- Resolve Body (per-entity override, fallback to schedule-level)
+            SET @iBody = NULL;
+            IF @PrimBodySrc = 'STATIC'
+                SET @iBody = @PrimBodySrcVal;
+            ELSE IF @PrimBodySrc = 'DYNAMIC_SQL' AND ISNULL(@PrimBodySrcVal,'') <> ''
+            BEGIN
+                SET @iDynSQL = N'SELECT TOP 1 @e = Body FROM (' +
+                    REPLACE(@PrimBodySrcVal, '{VALUE}', @iSafeVal) + N') AS _q';
+                EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iBody OUTPUT;
+            END;
+            IF @iBody IS NULL
+            BEGIN
+                IF @sBodySource = 'STATIC'
+                    SET @iBody = @sBodySourceValue;
+                ELSE IF @sBodySource = 'DYNAMIC_SQL' AND ISNULL(@sBodySourceValue,'') <> ''
+                BEGIN
+                    SET @iDynSQL = N'SELECT TOP 1 @e = Body FROM (' +
+                        REPLACE(@sBodySourceValue, '{VALUE}', @iSafeVal) + N') AS _q';
+                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@iBody OUTPUT;
+                END;
+            END;
+
+            -- Apply token resolution + {{DISPLAYNAME}} substitution to subject/body
+            SET @iSubject = [schdl].[fn_ResolveAllTokens](@iSubject, @Today, @DocumentName);
+            SET @iSubject = REPLACE(@iSubject, '{{DISPLAYNAME}}', ISNULL(@iDisplayName,''));
+            SET @iBody    = [schdl].[fn_ResolveAllTokens](@iBody,    @Today, @DocumentName);
+            SET @iBody    = REPLACE(@iBody,    '{{DISPLAYNAME}}', ISNULL(@iDisplayName,''));
+
+            -- Build RequestJson
             SET @iPrimJson =
-                '{"name":"'  + STRING_ESCAPE(@PrimName,'json') +
+                '{"name":"' + STRING_ESCAPE(@PrimName,'json') +
                 '","type":"string","values":["' + STRING_ESCAPE(@iVal,'json') +
                 '"],"multiple":false,"required":true}';
 
             SET @iReqJson =
-                '{"documentId":"'    + ISNULL(@ResolvedDocId,'') +
+                '{"documentId":"' + ISNULL(@ResolvedDocId,'') +
                 '","outputFormat":"' + @OutputFormat +
-                '","language":'      + CAST(@Language AS NVARCHAR) +
-                ',"parameters":['    + @iPrimJson + ISNULL(',' + @NonPrimArray,'') +
+                '","language":' + CAST(@Language AS NVARCHAR) +
+                ',"parameters":[' + @iPrimJson + ISNULL(',' + @NonPrimArray,'') +
                 '],"confidentiality":"' + @Confidentiality + '"}';
 
             INSERT INTO [schdl].[DispatchQueue]
                 (LogID,ScheduleID,DispatchType,DeliveryMethod,DispatchKeyValue,
                  DisplayName,FileName,RequestJson,
-                 ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,
-                 FolderPath)
+                 ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,FolderPath)
             VALUES
                 (@LogID,@ScheduleID,'INDIVIDUAL',@sDeliveryMethod,@iVal,
                  @iDisplayName,@iFileName,@iReqJson,
-                 ISNULL(@iEmail,''),@Cc,@Bcc,@EmailSubject,@EmailBody,
-                 @iFolderPath);
+                 ISNULL(@iEmail,''),@CcFanOut,@BccFanOut,@iSubject,@iBody,@iFolderPath);
 
             FETCH NEXT FROM ic INTO @iVal;
         END;
         CLOSE ic; DEALLOCATE ic;
     END;
 
-    -- BULK row
+    -- ── COMBINED row ──────────────────────────────────────────────────────────
     IF @PrimMode IN ('COMBINED','BOTH')
     BEGIN
-        DECLARE @bVals      NVARCHAR(MAX),
-                @bPrimJson  NVARCHAR(MAX),
-                @bReqJson   NVARCHAR(MAX),
-                @bTo        NVARCHAR(MAX),
-                @bFileName  NVARCHAR(500),
-                @bFolder    NVARCHAR(1000),
-                @bsTok      NVARCHAR(100),
-                @bsRes      NVARCHAR(500),
-                @bfTok      NVARCHAR(100),
-                @bfRes      NVARCHAR(500),
-                @lvBulkSQL  NVARCHAR(600),
-                @sfBulkSQL  NVARCHAR(600),
-                @dyBulkSQL  NVARCHAR(2000),
-                @lvBFolSQL  NVARCHAR(600),
-                @sfBFolSQL  NVARCHAR(600),
-                @dyBFolSQL  NVARCHAR(2000);
+        DECLARE
+            @bVals     NVARCHAR(MAX),
+            @bPrimJson NVARCHAR(MAX),
+            @bReqJson  NVARCHAR(MAX),
+            @bTo       NVARCHAR(MAX),
+            @bFileName NVARCHAR(MAX),
+            @bFolder   NVARCHAR(MAX),
+            @bSubject  NVARCHAR(MAX),
+            @bBody     NVARCHAR(MAX),
+            @bDynSQL   NVARCHAR(MAX);
 
-        -- Build the JSON values array from all dispatch values
-        SELECT @bVals = '[' + STRING_AGG('"' + STRING_ESCAPE(DispatchValue,'json') + '"', ',') + ']'
-        FROM   #PV;
+        SELECT @bVals = '[' + STRING_AGG('"' + STRING_ESCAPE(DispatchValue,'json') + '"', ',') + ']' FROM #PV;
 
         SET @bPrimJson =
-            '{"name":"'   + STRING_ESCAPE(@PrimName,'json') +
+            '{"name":"' + STRING_ESCAPE(@PrimName,'json') +
             '","type":"string","values":' + @bVals +
             ',"multiple":true,"required":true}';
 
         SET @bReqJson =
-            '{"documentId":"'    + ISNULL(@ResolvedDocId,'') +
+            '{"documentId":"' + ISNULL(@ResolvedDocId,'') +
             '","outputFormat":"' + @OutputFormat +
-            '","language":'      + CAST(@Language AS NVARCHAR) +
-            ',"parameters":['    + @bPrimJson + ISNULL(',' + @NonPrimArray,'') +
+            '","language":' + CAST(@Language AS NVARCHAR) +
+            ',"parameters":[' + @bPrimJson + ISNULL(',' + @NonPrimArray,'') +
             '],"confidentiality":"' + @Confidentiality + '"}';
 
-        -- Resolve combined/bulk email TO from Schedule delivery config
+        -- Resolve combined email
         SET @bTo = NULL;
-        IF @sEmailSource = 'STATIC'
-            SET @bTo = @sEmailSourceValue;
-        ELSE IF @sEmailSource = 'LOOKUP_VIEW'
+        IF @sDeliveryMethod IN ('EMAIL','BOTH')
         BEGIN
-            SET @lvBulkSQL = N'SELECT TOP 1 @e = EmailAddress FROM '
-                + @sEmailSourceValue + N' WHERE LookupKey = @v';
-            EXEC sp_executesql @lvBulkSQL, N'@v NVARCHAR(500), @e NVARCHAR(320) OUTPUT',
-                @v = @DocumentName, @e = @bTo OUTPUT;
-        END
-        ELSE IF @sEmailSource = 'SCALAR_FN'
-        BEGIN
-            SET @sfBulkSQL = N'SELECT @e = ' + @sEmailSourceValue + N'(@v)';
-            EXEC sp_executesql @sfBulkSQL, N'@v NVARCHAR(500), @e NVARCHAR(320) OUTPUT',
-                @v = @DocumentName, @e = @bTo OUTPUT;
-        END
-        ELSE IF @sEmailSource = 'DYNAMIC_SQL'
-        BEGIN
-            SET @dyBulkSQL = N'SELECT TOP 1 @e = EmailAddress FROM ('
-                + @sEmailSourceValue + N') AS _q';
-            EXEC sp_executesql @dyBulkSQL, N'@e NVARCHAR(320) OUTPUT', @e = @bTo OUTPUT;
+            IF @sEmailSource = 'STATIC'
+                SET @bTo = @sEmailSourceValue;
+            ELSE IF @sEmailSource = 'DYNAMIC_SQL' AND ISNULL(@sEmailSourceValue,'') <> ''
+            BEGIN
+                SET @bDynSQL = N'SELECT @e = STRING_AGG(EmailAddress, '','') WITHIN GROUP (ORDER BY EmailAddress) FROM (' + @sEmailSourceValue + N') AS _q';
+                EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@bTo OUTPUT;
+            END;
         END;
-        -- Also append static TO recipients from ScheduleRecipient
-        SELECT @bTo = ISNULL(NULLIF(@bTo,'') + ',', '')
-            + ISNULL(STRING_AGG(r.EmailAddress, ','),'')
-        FROM   [schdl].[ScheduleRecipient] sr
-        JOIN   [schdl].[Recipient] r ON r.RecipientID = sr.RecipientID
-        WHERE  sr.ScheduleID = @ScheduleID AND sr.RecipientRole = 'TO' AND r.IsActive = 1;
 
-        -- Resolve combined/bulk filename from Schedule delivery config
-        -- Priority: schedule FileNameTemplate > schedule FileNameSource > param-level template
+        -- Resolve combined subject
+        SET @bSubject = NULL;
+        IF @sSubjectSource = 'STATIC'      SET @bSubject = @sSubjectSourceValue;
+        ELSE IF @sSubjectSource = 'DYNAMIC_SQL' AND ISNULL(@sSubjectSourceValue,'') <> ''
+        BEGIN
+            SET @bDynSQL = N'SELECT TOP 1 @e = Subject FROM (' + @sSubjectSourceValue + N') AS _q';
+            EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@bSubject OUTPUT;
+        END;
+
+        -- Resolve combined body
+        SET @bBody = NULL;
+        IF @sBodySource = 'STATIC'      SET @bBody = @sBodySourceValue;
+        ELSE IF @sBodySource = 'DYNAMIC_SQL' AND ISNULL(@sBodySourceValue,'') <> ''
+        BEGIN
+            SET @bDynSQL = N'SELECT TOP 1 @e = Body FROM (' + @sBodySourceValue + N') AS _q';
+            EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@bBody OUTPUT;
+        END;
+
+        -- Resolve combined filename
         SET @bFileName = NULL;
-        IF @sFileNameTemplate IS NOT NULL
+        IF @sFileNameSource = 'STATIC'
         BEGIN
-            SET @bFileName = @sFileNameTemplate;
-            SET @bFileName = REPLACE(@bFileName, '{{REPORTNAME}}', @DocumentName);
-            SET @bFileName = REPLACE(@bFileName, '{{DISPLAYNAME}}', '');
-            -- @bsTok, @bsRes declared in BULK section
-            DECLARE bst CURSOR LOCAL FAST_FORWARD FOR
-                SELECT Token, [schdl].[fn_ResolveDateToken](Token, @Today)
-                FROM   [schdl].[DateToken] WHERE IsActive = 1;
-            OPEN bst; FETCH NEXT FROM bst INTO @bsTok, @bsRes;
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                IF @bFileName LIKE '%' + @bsTok + '%'
-                    SET @bFileName = REPLACE(@bFileName, @bsTok, @bsRes);
-                FETCH NEXT FROM bst INTO @bsTok, @bsRes;
-            END;
-            CLOSE bst; DEALLOCATE bst;
-        END
-        ELSE IF @sFileNameSource = 'STATIC'
             SET @bFileName = @sFileNameSourceValue;
-        ELSE IF @PrimFNTemplate IS NOT NULL
-        BEGIN
-            SET @bFileName = @PrimFNTemplate;
-            -- Replace {{REPORTNAME}} with DocumentName
-            IF @bFileName LIKE '%{{REPORTNAME}}%'
-                SET @bFileName = REPLACE(@bFileName, '{{REPORTNAME}}', @DocumentName);
-            SET @bFileName = REPLACE(@bFileName, '{{{DISPLAYNAME}}}', '');
-            -- @bfTok, @bfRes declared in BULK section
-            DECLARE bft CURSOR LOCAL FAST_FORWARD FOR
-                SELECT Token, [schdl].[fn_ResolveDateToken](Token, @Today)
-                FROM   [schdl].[DateToken] WHERE IsActive = 1;
-            OPEN bft; FETCH NEXT FROM bft INTO @bfTok, @bfRes;
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                IF @bFileName LIKE '%' + @bfTok + '%'
-                    SET @bFileName = REPLACE(@bFileName, @bfTok, @bfRes);
-                FETCH NEXT FROM bft INTO @bfTok, @bfRes;
-            END;
-            CLOSE bft; DEALLOCATE bft;
+            SET @bFileName = REPLACE(@bFileName, '{{DISPLAYNAME}}', '');
+            SET @bFileName = [schdl].[fn_ResolveAllTokens](@bFileName, @Today, @DocumentName);
         END
-        ELSE IF @PrimFNSrc = 'STATIC'
-            SET @bFileName = @PrimFNSrcVal;
-
-        -- Resolve combined/bulk folder path from Schedule delivery config
-        SET @bFolder = NULL;
-        IF @sFolderSource = 'STATIC'
-            SET @bFolder = @sFolderSourceValue;
-        ELSE IF @sFolderSource = 'LOOKUP_VIEW'
+        ELSE IF @sFileNameSource = 'DYNAMIC_SQL' AND ISNULL(@sFileNameSourceValue,'') <> ''
         BEGIN
-            SET @lvBFolSQL = N'SELECT TOP 1 @e = FolderPath FROM '
-                + @sFolderSourceValue + N' WHERE LookupKey = @v';
-            EXEC sp_executesql @lvBFolSQL, N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                @v = @DocumentName, @e = @bFolder OUTPUT;
-        END
-        ELSE IF @sFolderSource = 'SCALAR_FN'
-        BEGIN
-            SET @sfBFolSQL = N'SELECT @e = ' + @sFolderSourceValue + N'(@v)';
-            EXEC sp_executesql @sfBFolSQL, N'@v NVARCHAR(500), @e NVARCHAR(1000) OUTPUT',
-                @v = @DocumentName, @e = @bFolder OUTPUT;
-        END
-        ELSE IF @sFolderSource = 'DYNAMIC_SQL'
-        BEGIN
-            SET @dyBFolSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
-                + @sFolderSourceValue + N') AS _q';
-            EXEC sp_executesql @dyBFolSQL, N'@e NVARCHAR(1000) OUTPUT', @e = @bFolder OUTPUT;
+            SET @bDynSQL = N'SELECT TOP 1 @e = FileName FROM (' + @sFileNameSourceValue + N') AS _q';
+            EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@bFileName OUTPUT;
+            IF @bFileName IS NOT NULL
+                SET @bFileName = [schdl].[fn_ResolveAllTokens](@bFileName, @Today, @DocumentName);
         END;
+        -- Fallback: per-entity filename for combined (strip {{DISPLAYNAME}})
+        IF @bFileName IS NULL AND @PrimFNSrc IS NOT NULL
+        BEGIN
+            IF @PrimFNSrc = 'STATIC'
+            BEGIN
+                SET @bFileName = REPLACE(@PrimFNSrcVal, '{{DISPLAYNAME}}', '');
+                SET @bFileName = [schdl].[fn_ResolveAllTokens](@bFileName, @Today, @DocumentName);
+            END;
+        END;
+
+        -- Resolve combined folder
+        SET @bFolder = NULL;
+        IF @sDeliveryMethod IN ('FOLDER','BOTH')
+        BEGIN
+            IF @sFolderSource = 'STATIC'
+                SET @bFolder = @sFolderSourceValue;
+            ELSE IF @sFolderSource = 'DYNAMIC_SQL' AND ISNULL(@sFolderSourceValue,'') <> ''
+            BEGIN
+                SET @bDynSQL = N'SELECT TOP 1 @e = FolderPath FROM (' + @sFolderSourceValue + N') AS _q';
+                EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(MAX) OUTPUT', @e=@bFolder OUTPUT;
+            END;
+            IF @bFolder IS NOT NULL
+                SET @bFolder = [schdl].[fn_ResolveAllTokens](@bFolder, @Today, @DocumentName);
+        END;
+
+        -- Apply token resolution to subject/body
+        SET @bSubject = [schdl].[fn_ResolveAllTokens](@bSubject, @Today, @DocumentName);
+        SET @bBody    = [schdl].[fn_ResolveAllTokens](@bBody,    @Today, @DocumentName);
 
         INSERT INTO [schdl].[DispatchQueue]
             (LogID,ScheduleID,DispatchType,DeliveryMethod,DispatchKeyValue,
              DisplayName,FileName,RequestJson,
-             ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,
-             FolderPath)
+             ToAddresses,CcAddresses,BccAddresses,EmailSubject,EmailBody,FolderPath)
         VALUES
             (@LogID,@ScheduleID,'COMBINED',@sDeliveryMethod,NULL,
              NULL,@bFileName,@bReqJson,
-             ISNULL(@bTo,''),@Cc,@Bcc,@EmailSubject,@EmailBody,
-             @bFolder);
+             ISNULL(@bTo,''),@CcAll,@BccAll,@bSubject,@bBody,@bFolder);
     END;
+
+    UPDATE [schdl].[ExecutionLog] SET Status='PENDING' WHERE LogID=@LogID;
 END;
 GO
 
@@ -1678,7 +1677,7 @@ CREATE PROCEDURE [schdl].[usp_GetDueSchedules]
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @Now DATETIME2=ISNULL(@AsOf,SYSUTCDATETIME());
+    DECLARE @Now DATETIME2=ISNULL(@AsOf,GETDATE());
     DECLARE @Today DATE=CAST(@Now AS DATE);
     DECLARE @NowTime TIME=CAST(@Now AS TIME);
     DECLARE @DOW TINYINT=DATEPART(WEEKDAY,@Now)-1;
@@ -1771,10 +1770,10 @@ BEGIN
 
     SELECT
         dq.QueueID,dq.LogID,dq.ScheduleID,
-        s.ScheduleName,d.DocumentName,d.ReportEndpoint,
+        s.ScheduleName,dq.DeliveryMethod,d.DocumentName,d.ReportEndpoint,
         dq.DispatchType,dq.DispatchKeyValue,dq.RequestJson,
         dq.ToAddresses,dq.CcAddresses,dq.BccAddresses,
-        dq.EmailSubject,dq.EmailBody
+        dq.EmailSubject,dq.EmailBody,dq.FolderPath, dq.FileName
     FROM [schdl].[DispatchQueue] dq
     JOIN [schdl].[Schedule] s ON s.ScheduleID=dq.ScheduleID
     JOIN [schdl].[Document] d ON d.ReportID=s.ReportID
@@ -1787,20 +1786,20 @@ GO
 -- 4.3  usp_UpdateDispatchStatus  (Flowgear calls after each send)
 CREATE PROCEDURE [schdl].[usp_UpdateDispatchStatus]
     @QueueID      BIGINT,
-    @Status       NVARCHAR(20),   -- SENT | FAILED | SKIPPED
+    @Status       NVARCHAR(20),   -- SENT | SUCCESS | FAILED | SKIPPED
     @ErrorMessage NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     UPDATE [schdl].[DispatchQueue]
-    SET    Status=@Status,ErrorMessage=@ErrorMessage,ProcessedAt=SYSUTCDATETIME()
+    SET    Status=@Status,ErrorMessage=@ErrorMessage,ProcessedAt=GETDATE()
     WHERE  QueueID=@QueueID;
 
     UPDATE el SET
         el.Status=CASE WHEN EXISTS(SELECT 1 FROM [schdl].[DispatchQueue] d2
                                    WHERE d2.LogID=el.LogID AND d2.Status='FAILED')
                        THEN 'FAILED' ELSE 'SUCCESS' END,
-        el.ProcessedAt=SYSUTCDATETIME()
+        el.ProcessedAt=GETDATE()
     FROM [schdl].[ExecutionLog] el
     JOIN [schdl].[DispatchQueue] dq ON dq.LogID=el.LogID
     WHERE dq.QueueID=@QueueID
@@ -1924,16 +1923,17 @@ BEGIN
         @WindowEnd              TIME,
         @StartDate              DATE,
         @EndDate                DATE,
-        @Subject                NVARCHAR(500),
-        @BodyTemplate           NVARCHAR(MAX),
         @DeliveryMethod         NVARCHAR(10),
         @EmailSource            NVARCHAR(20),
-        @EmailSourceValue       NVARCHAR(1000),
-        @FileNameTemplate       NVARCHAR(500),
+        @EmailSourceValue       NVARCHAR(MAX),
+        @SubjectSource          NVARCHAR(20),
+        @SubjectSourceValue     NVARCHAR(MAX),
+        @BodySource             NVARCHAR(20),
+        @BodySourceValue        NVARCHAR(MAX),
         @FileNameSource         NVARCHAR(20),
-        @FileNameSourceValue    NVARCHAR(1000),
+        @FileNameSourceValue    NVARCHAR(MAX),
         @FolderSource           NVARCHAR(20),
-        @FolderSourceValue      NVARCHAR(1000);
+        @FolderSourceValue      NVARCHAR(MAX);
 
     SELECT
         @ScheduleID          = s.ScheduleID,
@@ -1951,12 +1951,13 @@ BEGIN
         @WindowEnd           = s.WindowEnd,
         @StartDate           = s.StartDate,
         @EndDate             = s.EndDate,
-        @Subject             = s.Subject,
-        @BodyTemplate        = s.BodyTemplate,
         @DeliveryMethod      = ISNULL(s.DeliveryMethod, 'EMAIL'),
         @EmailSource         = s.EmailSource,
         @EmailSourceValue    = s.EmailSourceValue,
-        @FileNameTemplate    = s.FileNameTemplate,
+        @SubjectSource       = s.SubjectSource,
+        @SubjectSourceValue  = s.SubjectSourceValue,
+        @BodySource          = s.BodySource,
+        @BodySourceValue     = s.BodySourceValue,
         @FileNameSource      = s.FileNameSource,
         @FileNameSourceValue = s.FileNameSourceValue,
         @FolderSource        = s.FolderSource,
@@ -1967,8 +1968,7 @@ BEGIN
 
     IF @ScheduleID IS NULL
     BEGIN
-        SELECT 'ERROR'                                    AS Result,
-               'Schedule not found: ' + @ScheduleName    AS Message;
+        SELECT 'ERROR' AS Result, 'Schedule not found: ' + @ScheduleName AS Message;
         RETURN;
     END;
 
@@ -1976,67 +1976,53 @@ BEGIN
     DECLARE @DispatchJson NVARCHAR(MAX) = '{';
     SET @DispatchJson += '"deliveryMethod":"' + STRING_ESCAPE(@DeliveryMethod,'json') + '"';
     IF @EmailSource IS NOT NULL
-        SET @DispatchJson += ',"emailSource":"'         + STRING_ESCAPE(@EmailSource,'json')      + '"';
+        SET @DispatchJson += ',"emailSource":"' + STRING_ESCAPE(@EmailSource,'json') + '"';
     IF @EmailSourceValue IS NOT NULL
-        SET @DispatchJson += ',"emailSourceValue":"'    + STRING_ESCAPE(@EmailSourceValue,'json')  + '"';
-    IF @FileNameTemplate IS NOT NULL
-        SET @DispatchJson += ',"fileNameTemplate":"'    + STRING_ESCAPE(@FileNameTemplate,'json')  + '"';
+        SET @DispatchJson += ',"emailSourceValue":"' + STRING_ESCAPE(@EmailSourceValue,'json') + '"';
+    IF @SubjectSource IS NOT NULL
+        SET @DispatchJson += ',"subjectSource":"' + STRING_ESCAPE(@SubjectSource,'json') + '"';
+    IF @SubjectSourceValue IS NOT NULL
+        SET @DispatchJson += ',"subjectSourceValue":"' + STRING_ESCAPE(@SubjectSourceValue,'json') + '"';
+    IF @BodySource IS NOT NULL
+        SET @DispatchJson += ',"bodySource":"' + STRING_ESCAPE(@BodySource,'json') + '"';
+    IF @BodySourceValue IS NOT NULL
+        SET @DispatchJson += ',"bodySourceValue":"' + STRING_ESCAPE(@BodySourceValue,'json') + '"';
     IF @FileNameSource IS NOT NULL
-        SET @DispatchJson += ',"fileNameSource":"'      + STRING_ESCAPE(@FileNameSource,'json')    + '"';
+        SET @DispatchJson += ',"fileNameSource":"' + STRING_ESCAPE(@FileNameSource,'json') + '"';
     IF @FileNameSourceValue IS NOT NULL
         SET @DispatchJson += ',"fileNameSourceValue":"' + STRING_ESCAPE(@FileNameSourceValue,'json') + '"';
     IF @FolderSource IS NOT NULL
-        SET @DispatchJson += ',"folderSource":"'        + STRING_ESCAPE(@FolderSource,'json')     + '"';
+        SET @DispatchJson += ',"folderSource":"' + STRING_ESCAPE(@FolderSource,'json') + '"';
     IF @FolderSourceValue IS NOT NULL
-        SET @DispatchJson += ',"folderSourceValue":"'   + STRING_ESCAPE(@FolderSourceValue,'json') + '"';
+        SET @DispatchJson += ',"folderSourceValue":"' + STRING_ESCAPE(@FolderSourceValue,'json') + '"';
     SET @DispatchJson += '}';
 
-    -- Build @ParametersJson — one element per ScheduleParameter row
+    -- Build @ParametersJson
     DECLARE @ParametersJson NVARCHAR(MAX) = '';
     DECLARE
-        @pID            INT,
-        @pName          NVARCHAR(100),
-        @pType          NVARCHAR(50),
-        @pRequired      BIT,
-        @pSort          INT,
-        @pValue         NVARCHAR(MAX),
-        @pVQ            NVARCHAR(MAX),
-        @pHasDC         BIT,
-        @pIsPrimary     BIT,
-        @pMode          NVARCHAR(12),
-        @pEmailSrc      NVARCHAR(20),
-        @pEmailSrcVal   NVARCHAR(1000),
-        @pDNSrc         NVARCHAR(20),
-        @pDNSrcVal      NVARCHAR(1000),
-        @pFNSrc         NVARCHAR(20),
-        @pFNSrcVal      NVARCHAR(1000),
-        @pFNTemplate    NVARCHAR(500),
-        @pFolSrc        NVARCHAR(20),
-        @pFolSrcVal     NVARCHAR(1000),
-        @pFirst         BIT = 1,
-        @pChunk         NVARCHAR(MAX);
+        @pID INT, @pName NVARCHAR(100), @pType NVARCHAR(50), @pRequired BIT,
+        @pSort INT, @pValue NVARCHAR(MAX), @pVQ NVARCHAR(MAX),
+        @pHasDC BIT, @pIsPrimary BIT, @pMode NVARCHAR(12),
+        @pEmailSrc NVARCHAR(20),   @pEmailSrcVal NVARCHAR(MAX),
+        @pDNSrc NVARCHAR(20),      @pDNSrcVal NVARCHAR(MAX),
+        @pFNSrc NVARCHAR(20),      @pFNSrcVal NVARCHAR(MAX),
+        @pFolSrc NVARCHAR(20),     @pFolSrcVal NVARCHAR(MAX),
+        @pSubjSrc NVARCHAR(20),    @pSubjSrcVal NVARCHAR(MAX),
+        @pBodySrc NVARCHAR(20),    @pBodySrcVal NVARCHAR(MAX),
+        @pFirst BIT = 1,           @pChunk NVARCHAR(MAX);
 
     DECLARE pc CURSOR LOCAL FAST_FORWARD FOR
         SELECT
-            dp.ParameterID,
-            dp.ParameterName,
-            dp.DataType,
-            dp.IsRequired,
-            dp.SortOrder,
-            sp.ParameterValue,
-            sp.ParameterValueQuery,
+            dp.ParameterID, dp.ParameterName, dp.DataType, dp.IsRequired, dp.SortOrder,
+            sp.ParameterValue, sp.ParameterValueQuery,
             CASE WHEN dc.ConfigID IS NOT NULL THEN 1 ELSE 0 END,
-            ISNULL(dc.IsPrimaryDispatchKey, 0),
-            dc.DispatchMode,
-            dc.EmailSource,
-            dc.EmailSourceValue,
-            dc.DisplayNameSource,
-            dc.DisplayNameSourceValue,
-            dc.FileNameSource,
-            dc.FileNameSourceValue,
-            dc.FileNameTemplate,
-            dc.FolderSource,
-            dc.FolderSourceValue
+            ISNULL(dc.IsPrimaryDispatchKey, 0), dc.DispatchMode,
+            dc.EmailSource, dc.EmailSourceValue,
+            dc.DisplayNameSource, dc.DisplayNameSourceValue,
+            dc.FileNameSource, dc.FileNameSourceValue,
+            dc.FolderSource, dc.FolderSourceValue,
+            dc.SubjectSource, dc.SubjectSourceValue,
+            dc.BodySource, dc.BodySourceValue
         FROM [schdl].[ScheduleParameter] sp
         JOIN [schdl].[DocumentParameter] dp ON dp.ParameterID = sp.ParameterID
         LEFT JOIN [schdl].[ParameterDispatchConfig] dc ON dc.ParameterID = dp.ParameterID
@@ -2048,7 +2034,8 @@ BEGIN
         @pID, @pName, @pType, @pRequired, @pSort, @pValue, @pVQ,
         @pHasDC, @pIsPrimary, @pMode,
         @pEmailSrc, @pEmailSrcVal, @pDNSrc, @pDNSrcVal,
-        @pFNSrc, @pFNSrcVal, @pFNTemplate, @pFolSrc, @pFolSrcVal;
+        @pFNSrc, @pFNSrcVal, @pFolSrc, @pFolSrcVal,
+        @pSubjSrc, @pSubjSrcVal, @pBodySrc, @pBodySrcVal;
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
@@ -2056,38 +2043,43 @@ BEGIN
         SET @pFirst = 0;
 
         SET @pChunk  = '{';
-        SET @pChunk += '"name":"'      + STRING_ESCAPE(@pName,'json')  + '"';
-        SET @pChunk += ',"type":"'     + STRING_ESCAPE(@pType,'json')  + '"';
-        SET @pChunk += ',"required":'  + CASE WHEN @pRequired = 1 THEN 'true' ELSE 'false' END;
+        SET @pChunk += '"name":"' + STRING_ESCAPE(@pName,'json') + '"';
+        SET @pChunk += ',"type":"' + STRING_ESCAPE(@pType,'json') + '"';
+        SET @pChunk += ',"required":' + CASE WHEN @pRequired=1 THEN 'true' ELSE 'false' END;
         SET @pChunk += ',"sortOrder":' + CAST(@pSort AS NVARCHAR);
-        SET @pChunk += ',"value":"'    + STRING_ESCAPE(ISNULL(@pValue,''),'json') + '"';
+        SET @pChunk += ',"value":"' + STRING_ESCAPE(ISNULL(@pValue,''),'json') + '"';
         IF @pVQ IS NOT NULL
             SET @pChunk += ',"valueQuery":"' + STRING_ESCAPE(@pVQ,'json') + '"';
 
-        -- Emit fanOut block only for the primary dispatch key
         IF @pHasDC = 1 AND @pIsPrimary = 1
         BEGIN
             SET @pChunk += ',"fanOut":{';
             SET @pChunk += '"isPrimary":true';
             SET @pChunk += ',"mode":"' + STRING_ESCAPE(ISNULL(@pMode,'INDIVIDUAL'),'json') + '"';
             IF @pEmailSrc IS NOT NULL
-                SET @pChunk += ',"emailSource":"'            + STRING_ESCAPE(@pEmailSrc,'json')    + '"';
+                SET @pChunk += ',"emailSource":"' + STRING_ESCAPE(@pEmailSrc,'json') + '"';
             IF @pEmailSrcVal IS NOT NULL
-                SET @pChunk += ',"emailSourceValue":"'       + STRING_ESCAPE(@pEmailSrcVal,'json') + '"';
+                SET @pChunk += ',"emailSourceValue":"' + STRING_ESCAPE(@pEmailSrcVal,'json') + '"';
             IF @pDNSrc IS NOT NULL
-                SET @pChunk += ',"displayNameSource":"'      + STRING_ESCAPE(@pDNSrc,'json')       + '"';
+                SET @pChunk += ',"displayNameSource":"' + STRING_ESCAPE(@pDNSrc,'json') + '"';
             IF @pDNSrcVal IS NOT NULL
-                SET @pChunk += ',"displayNameSourceValue":"' + STRING_ESCAPE(@pDNSrcVal,'json')    + '"';
-            IF @pFNTemplate IS NOT NULL
-                SET @pChunk += ',"fileNameTemplate":"'       + STRING_ESCAPE(@pFNTemplate,'json')  + '"';
+                SET @pChunk += ',"displayNameSourceValue":"' + STRING_ESCAPE(@pDNSrcVal,'json') + '"';
             IF @pFNSrc IS NOT NULL
-                SET @pChunk += ',"fileNameSource":"'         + STRING_ESCAPE(@pFNSrc,'json')       + '"';
+                SET @pChunk += ',"fileNameSource":"' + STRING_ESCAPE(@pFNSrc,'json') + '"';
             IF @pFNSrcVal IS NOT NULL
-                SET @pChunk += ',"fileNameSourceValue":"'    + STRING_ESCAPE(@pFNSrcVal,'json')    + '"';
+                SET @pChunk += ',"fileNameSourceValue":"' + STRING_ESCAPE(@pFNSrcVal,'json') + '"';
             IF @pFolSrc IS NOT NULL
-                SET @pChunk += ',"folderSource":"'           + STRING_ESCAPE(@pFolSrc,'json')      + '"';
+                SET @pChunk += ',"folderSource":"' + STRING_ESCAPE(@pFolSrc,'json') + '"';
             IF @pFolSrcVal IS NOT NULL
-                SET @pChunk += ',"folderSourceValue":"'      + STRING_ESCAPE(@pFolSrcVal,'json')   + '"';
+                SET @pChunk += ',"folderSourceValue":"' + STRING_ESCAPE(@pFolSrcVal,'json') + '"';
+            IF @pSubjSrc IS NOT NULL
+                SET @pChunk += ',"subjectSource":"' + STRING_ESCAPE(@pSubjSrc,'json') + '"';
+            IF @pSubjSrcVal IS NOT NULL
+                SET @pChunk += ',"subjectSourceValue":"' + STRING_ESCAPE(@pSubjSrcVal,'json') + '"';
+            IF @pBodySrc IS NOT NULL
+                SET @pChunk += ',"bodySource":"' + STRING_ESCAPE(@pBodySrc,'json') + '"';
+            IF @pBodySrcVal IS NOT NULL
+                SET @pChunk += ',"bodySourceValue":"' + STRING_ESCAPE(@pBodySrcVal,'json') + '"';
             SET @pChunk += '}';
         END;
 
@@ -2098,62 +2090,58 @@ BEGIN
             @pID, @pName, @pType, @pRequired, @pSort, @pValue, @pVQ,
             @pHasDC, @pIsPrimary, @pMode,
             @pEmailSrc, @pEmailSrcVal, @pDNSrc, @pDNSrcVal,
-            @pFNSrc, @pFNSrcVal, @pFNTemplate, @pFolSrc, @pFolSrcVal;
+            @pFNSrc, @pFNSrcVal, @pFolSrc, @pFolSrcVal,
+            @pSubjSrc, @pSubjSrcVal, @pBodySrc, @pBodySrcVal;
     END;
     CLOSE pc; DEALLOCATE pc;
 
     SET @ParametersJson = '[' + @ParametersJson + ']';
 
-    -- Build @RecipientsJson from ScheduleRecipient (all static recipients)
+    -- Build @RecipientsJson from ScheduleStandingRecipient (CC/BCC only)
     DECLARE @RecipientsJson NVARCHAR(MAX);
     SELECT @RecipientsJson =
         ISNULL(
             '[' +
             STRING_AGG(
-                '{"name":"'   + STRING_ESCAPE(ISNULL(r.RecipientName,''),'json') +
-                '","email":"' + STRING_ESCAPE(r.EmailAddress,'json') +
-                '","role":"'  + sr.RecipientRole + '"}',
+                '{"email":"' + STRING_ESCAPE(EmailAddress,'json') +
+                '","role":"' + RecipientRole +
+                '","includeInFanOut":' + CASE WHEN IncludeInFanOut=1 THEN 'true' ELSE 'false' END + '}',
                 ','
-            ) WITHIN GROUP (ORDER BY sr.RecipientRole, r.EmailAddress)
+            ) WITHIN GROUP (ORDER BY RecipientRole, EmailAddress)
             + ']',
         '[]')
-    FROM [schdl].[ScheduleRecipient] sr
-    JOIN [schdl].[Recipient] r ON r.RecipientID = sr.RecipientID
-    WHERE sr.ScheduleID = @ScheduleID AND r.IsActive = 1;
+    FROM [schdl].[ScheduleStandingRecipient]
+    WHERE ScheduleID = @ScheduleID;
 
-    -- Build RegisterSQL — ready-to-run EXEC call
+    -- Build RegisterSQL
     DECLARE @RegisterSQL NVARCHAR(MAX);
     SET @RegisterSQL  = 'EXEC [schdl].[usp_RegisterSchedule]' + CHAR(13)+CHAR(10);
     SET @RegisterSQL += '    @DocumentName    = N''' + REPLACE(@DocumentName,   '''','''''') + ''',' + CHAR(13)+CHAR(10);
     SET @RegisterSQL += '    @ReportEndpoint  = N''' + REPLACE(@ReportEndpoint, '''','''''') + ''',' + CHAR(13)+CHAR(10);
     IF @OutputFormat <> 'xlsx'
-        SET @RegisterSQL += '    @OutputFormat    = '''  + @OutputFormat + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @OutputFormat    = ''' + @OutputFormat + ''',' + CHAR(13)+CHAR(10);
     IF @Language <> 1
-        SET @RegisterSQL += '    @Language        = '    + CAST(@Language AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @Language        = ' + CAST(@Language AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
     IF @Confidentiality <> 'normal'
-        SET @RegisterSQL += '    @Confidentiality = '''  + @Confidentiality + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @Confidentiality = ''' + @Confidentiality + ''',' + CHAR(13)+CHAR(10);
     SET @RegisterSQL += '    @ScheduleName    = N''' + REPLACE(@ScheduleName,   '''','''''') + ''',' + CHAR(13)+CHAR(10);
-    SET @RegisterSQL += '    @FrequencyType   = '''  + @FrequencyType + ''',' + CHAR(13)+CHAR(10);
+    SET @RegisterSQL += '    @FrequencyType   = ''' + @FrequencyType + ''',' + CHAR(13)+CHAR(10);
     IF @RunTime IS NOT NULL
-        SET @RegisterSQL += '    @RunTime         = ''' + CONVERT(NVARCHAR(8),@RunTime,108)     + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @RunTime         = ''' + CONVERT(NVARCHAR(8),@RunTime,108) + ''',' + CHAR(13)+CHAR(10);
     IF @DayOfWeek IS NOT NULL
-        SET @RegisterSQL += '    @DayOfWeek       = '   + CAST(@DayOfWeek AS NVARCHAR)  + ',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @DayOfWeek       = ' + CAST(@DayOfWeek AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
     IF @DayOfMonth IS NOT NULL
-        SET @RegisterSQL += '    @DayOfMonth      = '   + CAST(@DayOfMonth AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @DayOfMonth      = ' + CAST(@DayOfMonth AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
     IF @IntervalMinutes IS NOT NULL
-        SET @RegisterSQL += '    @IntervalMinutes = '   + CAST(@IntervalMinutes AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @IntervalMinutes = ' + CAST(@IntervalMinutes AS NVARCHAR) + ',' + CHAR(13)+CHAR(10);
     IF @WindowStart IS NOT NULL
         SET @RegisterSQL += '    @WindowStart     = ''' + CONVERT(NVARCHAR(8),@WindowStart,108) + ''',' + CHAR(13)+CHAR(10);
     IF @WindowEnd IS NOT NULL
-        SET @RegisterSQL += '    @WindowEnd       = ''' + CONVERT(NVARCHAR(8),@WindowEnd,108)   + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @WindowEnd       = ''' + CONVERT(NVARCHAR(8),@WindowEnd,108) + ''',' + CHAR(13)+CHAR(10);
     IF @StartDate IS NOT NULL AND @StartDate <> '2000-01-01'
-        SET @RegisterSQL += '    @StartDate       = ''' + CONVERT(NVARCHAR(10),@StartDate,23)  + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @StartDate       = ''' + CONVERT(NVARCHAR(10),@StartDate,23) + ''',' + CHAR(13)+CHAR(10);
     IF @EndDate IS NOT NULL
-        SET @RegisterSQL += '    @EndDate         = ''' + CONVERT(NVARCHAR(10),@EndDate,23)    + ''',' + CHAR(13)+CHAR(10);
-    IF @Subject IS NOT NULL
-        SET @RegisterSQL += '    @Subject         = N''' + REPLACE(@Subject,      '''','''''') + ''',' + CHAR(13)+CHAR(10);
-    IF @BodyTemplate IS NOT NULL
-        SET @RegisterSQL += '    @BodyTemplate    = N''' + REPLACE(@BodyTemplate, '''','''''') + ''',' + CHAR(13)+CHAR(10);
+        SET @RegisterSQL += '    @EndDate         = ''' + CONVERT(NVARCHAR(10),@EndDate,23) + ''',' + CHAR(13)+CHAR(10);
     SET @RegisterSQL += '    @DispatchJson    = N''' + REPLACE(@DispatchJson,    '''','''''') + ''',' + CHAR(13)+CHAR(10);
     SET @RegisterSQL += '    @ParametersJson  = N''' + REPLACE(@ParametersJson, '''','''''') + '''';
     IF @RecipientsJson <> '[]'
@@ -2172,6 +2160,7 @@ END;
 GO
 
 
+/*
 -- ============================================================
 --  SECTION 5  ENVIRONMENT SETUP
 --
@@ -2197,20 +2186,21 @@ EXEC [schdl].[usp_RegisterSchedule]
     @FrequencyType  = 'MONTHLY',
     @RunTime        = '06:00',
     @DayOfMonth     = 1,
-    @Subject        = 'BRM Production Report - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}',
-    @BodyTemplate   = 'Please find attached your production report for the previous month.',
+    @DispatchJson   = N'{"deliveryMethod":"BOTH",
+                "emailSource":"STATIC","emailSourceValue":"reports-bulk@example.com",
+                "subjectSource":"STATIC","subjectSourceValue":"BRM Production Report - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}",
+                "bodySource":"STATIC","bodySourceValue":"Please find attached your production report for the previous month."}',
     @ParametersJson = N'[
         {
             "name": "BrokerRelationshipManager",
             "type": "string", "required": true, "sortOrder": 1,
             "value":      "DYNAMIC",
             "valueQuery": "SELECT sBRMCode AS [Value] FROM dbo.BrokerRelationshipManager WHERE bActive = 1 ORDER BY sBRMCode",
-            "dispatch": {
+            "fanOut": {
                 "isPrimary":        true,
                 "mode":             "BOTH",
-                "emailSource":      "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_BRMEmail",
-                "bulkEmail":        "reports-bulk@example.com"
+                "emailSource":      "DYNAMIC_SQL",
+                "emailSourceValue": "SELECT EmailAddress FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'"
             }
         },
         { "name": "CaptureDateTo",    "type": "date", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" },
@@ -2228,18 +2218,16 @@ EXEC [schdl].[usp_RegisterSchedule]
     @FrequencyType  = 'MONTHLY',
     @RunTime        = '06:00',
     @DayOfMonth     = 1,
-    @Subject        = 'BRM Production Report - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}',
-    @BodyTemplate   = 'Please find attached your production report for the previous month.',
+    @DispatchJson   = N'{"deliveryMethod":"BOTH",
+                "emailSource":"STATIC","emailSourceValue":"reports-bulk@example.com",
+                "subjectSource":"STATIC","subjectSourceValue":"BRM Production Report - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}",
+                "bodySource":"STATIC","bodySourceValue":"Please find attached your production report for the previous month."}',
     @ParametersJson = N'[
-        {
-            "name":"BrokerRelationshipManager","type":"string","required":true,"sortOrder":1,
+        {"name":"BrokerRelationshipManager","type":"string","required":true,"sortOrder":1,
             "value":"BRM001|BRM002|BRM003|BRM004|BRM005|BRM006|BRM007|BRM008",
-            "dispatch":{
-                "isPrimary":true,"mode":"BOTH",
-                "emailSource":"LOOKUP_VIEW","emailSourceValue":"schdl.vw_BRMEmail",
-                "bulkEmail":"reports-bulk@example.com"
-            }
-        },
+            "fanOut":{"isPrimary":true,"mode":"BOTH",
+                "emailSource":"DYNAMIC_SQL",
+                "emailSourceValue":"SELECT EmailAddress FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'"}},
         {"name":"Brokerage",                "type":"string","required":true,"sortOrder":2,"value":"39398|38|39399|39|39400"},
         {"name":"Administrator_HeadOffice", "type":"string","required":true,"sortOrder":3,"value":"39323|2|41085|3|39324"},
         {"name":"CaptureDateTo",            "type":"date",  "required":true,"sortOrder":4,"value":"{{PREV_MONTH_END}}"},
@@ -2247,7 +2235,7 @@ EXEC [schdl].[usp_RegisterSchedule]
         {"name":"Product",                  "type":"string","required":true,"sortOrder":6,"value":"17110|16970"},
         {"name":"CapturedDateFrom",         "type":"date",  "required":true,"sortOrder":7,"value":"{{PREV_MONTH_START}}"}
     ]',
-    @RecipientsJson = N'[{"name":"Reports Admin","email":"reports-admin@example.com","role":"CC"}]';
+    @RecipientsJson = N'[{"email":"reports-admin@example.com","role":"CC","includeInFanOut":false}]';
 GO
 
 -- B: Daily Exception  (BULK, STATIC email)
@@ -2258,7 +2246,6 @@ EXEC [schdl].[usp_RegisterSchedule]
     @FrequencyType  = 'DAILY',
     @RunTime        = '07:00',
     @Subject        = 'Daily Exception Report - {{TODAY}}',
-    @BodyTemplate   = 'Attached is the exception report for {{TODAY-1}}.',
     @ParametersJson = N'[
         {
             "name":"AsOfDate","type":"date","required":true,"sortOrder":1,
@@ -2282,7 +2269,7 @@ EXEC [schdl].[usp_RegisterSchedule]
         {
             "name":"BrokerageID","type":"string","required":true,"sortOrder":1,
             "value":"39398|38|39399|39|39400",
-            "dispatch":{"isPrimary":true,"mode":"INDIVIDUAL","emailSource":"SCALAR_FN","emailSourceValue":"dbo.fn_GetBrokerEmail"}
+            "fanOut":{"isPrimary":true,"mode":"INDIVIDUAL","emailSource":"DYNAMIC_SQL","emailSourceValue":"SELECT EmailAddress FROM dbo.BrokerRelationshipManager WHERE sBRMCode = '{VALUE}'"}
         },
         {"name":"StatementDate","type":"date","required":true,"sortOrder":2,"value":"{{PREV_MONTH_END}}"}
     ]';
@@ -2360,13 +2347,11 @@ GO
 
 -- Schedule recipients
 -- SELECT   s.ScheduleName,
---          r.RecipientName,
---          r.EmailAddress,
---          sr.RecipientRole
--- FROM     schdl.ScheduleRecipient  sr
+--          sr.EmailAddress,
+--          sr.RecipientRole,
+--          sr.IncludeInFanOut
+-- FROM     schdl.ScheduleStandingRecipient  sr
 -- JOIN     schdl.Schedule           s  ON s.ScheduleID  = sr.ScheduleID
--- JOIN     schdl.Recipient          r  ON r.RecipientID = sr.RecipientID
--- WHERE    r.IsActive = 1
 -- ORDER BY s.ScheduleName, sr.RecipientRole;
 
 -- Recent dispatch queue
@@ -2418,3 +2403,4 @@ GO
 --            @QueueID=row.QueueID, @Status='SENT'|'FAILED',
 --            @ErrorMessage=NULL|'<error detail>'
 -- ============================================================
+*/
