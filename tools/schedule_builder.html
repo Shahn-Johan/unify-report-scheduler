@@ -740,7 +740,7 @@ select option{background:var(--s2)}
 
       <!-- EMAIL GROUP (shown when delivery includes EMAIL) -->
       <div class="ob-group" id="dlv-email-group" onclick="openDeliveryGroup('email')">
-        <div class="ob-group-header">✉ EMAIL<span class="ob-group-edit">&#9998;</span></div>
+        <div class="ob-group-header">✉ CONFIGURE EMAIL<span class="ob-group-edit">&#9998;</span></div>
         <div class="ob-group-row" id="dlv-email-row">
           <div class="ob-group-row-label">TO — Email Recipient</div>
           <div class="ob-group-row-val" id="dlv-email-tval"></div>
@@ -766,7 +766,7 @@ select option{background:var(--s2)}
 
       <!-- FOLDER GROUP (shown when delivery includes FOLDER) -->
       <div class="ob-group" id="dlv-folder-group" style="display:none" onclick="openDeliveryGroup('folder')">
-        <div class="ob-group-header">📁 FOLDER<span class="ob-group-edit">&#9998;</span></div>
+        <div class="ob-group-header">📁 CONFIGURE FOLDER<span class="ob-group-edit">&#9998;</span></div>
         <div class="ob-group-row">
           <div class="ob-group-row-label">Folder Path</div>
           <div class="ob-group-row-val" id="dlv-folder-tval"></div>
@@ -1040,23 +1040,18 @@ select option{background:var(--s2)}
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     Object Builder
     <span id="obj-count-badge" style="margin-left:8px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0;text-transform:none;display:none"></span>
-    <span id="obj-context" style="margin-left:6px;font-weight:400;text-transform:none;color:var(--muted);font-size:10px;letter-spacing:0">— click a parameter or delivery field to edit</span>
+    <span id="obj-context" style="margin-left:6px;font-weight:400;text-transform:none;color:var(--muted);font-size:12px;letter-spacing:0">— click a parameter or delivery field to edit</span>
   </div>
 
   <!-- Field editor zone — shown when a param or delivery field is being edited -->
   <div id="ob-field-zone" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-    <div id="ob-breadcrumb" style="font-size:10px;color:var(--muted);padding:8px 14px 4px;flex-shrink:0;letter-spacing:0;text-transform:none;font-weight:400">Click a parameter or delivery section to edit here</div>
+    <div id="ob-breadcrumb" style="font-size:14px;font-weight:700;color:var(--text);padding:10px 14px 6px;flex-shrink:0">Click a parameter or delivery section to edit here</div>
     <div id="ob-tok-chips" style="display:none;padding:4px 12px 6px;flex-shrink:0;flex-direction:row;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)"></div>
     <div id="ob-field-body" style="flex:1;overflow-y:auto;padding:12px 14px"></div>
   </div>
 
-  <div id="obj-empty" style="padding:24px 16px;color:var(--muted);font-size:12px;line-height:1.8">
-    <strong style="color:var(--text)">Object Builder</strong><br><br>
-    Click any parameter value, delivery section, or fan-out resolver in the
-    wizard to edit it here with full space.<br><br>
-    For <strong style="color:var(--text)">Lookup View</strong> or
-    <strong style="color:var(--text)">Scalar Function</strong> sources,
-    this panel also shows a ready-to-edit SQL template.
+  <div id="obj-empty" style="padding:10px 14px;color:var(--muted);font-size:11px;opacity:.6">
+    Click a section or parameter to configure it here.
   </div>
 
 </div>
@@ -1104,6 +1099,7 @@ let schedNameEdited = false;  // true once user manually types in schedule name
 let activeOBParam = null;    // param id currently open in OB field zone, or null
 let activeOBType  = 'param'; // 'param' | 'delivery' | 'fanout'
 let activeObjField = null;
+let _foParamId = 0; // updated by syncCore
 
 // ── Recipient state (CC/BCC standing recipients) ──────────────────────────
 let rcpState = []; // [{role:'CC', email:'', includeInFanOut:false}, ...]
@@ -1385,69 +1381,56 @@ function renderParams() {
   if (fanout!=='NONE') populateFanoutParamSelect();
   updateS3Summary();
   renderRailSummaries();
+  // Update param block value summaries
+  params.forEach(p => {
+    const el = document.getElementById('pvs-text-' + p.id);
+    if (el) el.textContent = getParamValueSummary(p);
+    // Update dynamic/fanout badges
+    const card = document.getElementById('pc-' + p.id);
+    if (card) {
+      const dynTag = card.querySelector('.ptag.dynamic');
+      const isFO = p.id === _foParamId && fanout !== 'NONE';
+      const foTag = card.querySelector('.ptag.fanout');
+      if (p.valueSource === 'dynamic' && !dynTag) {
+        const _edit1 = card.querySelector('.ob-group-header .ob-group-edit'); if(_edit1) _edit1.insertAdjacentHTML('beforebegin', '<span class="ptag dynamic" style="margin-right:4px">DYNAMIC</span>');
+      } else if (p.valueSource !== 'dynamic' && dynTag) { dynTag.remove(); }
+      if (isFO && !foTag) {
+        const _edit2 = card.querySelector('.ob-group-header .ob-group-edit'); if(_edit2) _edit2.insertAdjacentHTML('beforebegin', '<span class="ptag fanout" style="margin-right:4px">FAN-OUT</span>');
+      } else if (!isFO && foTag) { foTag.remove(); }
+    }
+  });
 }
 
 function makeParamCard(p) {
   const wrap = document.createElement('div');
-  wrap.className = 'param-card';
+  wrap.className = 'ob-group';
   wrap.id = 'pc-'+p.id;
+  wrap.style.cursor = 'pointer';
+  wrap.onclick = () => toggleParamCard(p.id);
   const tc = {string:'string',date:'date',int:'int'}[p.type]||'string';
+  const valSummary = getParamValueSummary(p);
+  const isFanoutPrimary = p.id === _foParamId && fanout !== 'NONE';
   wrap.innerHTML = `
-    <div class="param-head" onclick="toggleParamCard(${p.id})">
-      <span class="param-name-text">${esc(p.name)||'(unnamed)'}</span>
-      <span class="ptag ${tc}">${p.type}</span>
-      ${p.valueSource === 'dynamic' ? '<span class="ptag dynamic">dynamic</span>' : ''}
-      <button class="param-remove" onclick="event.stopPropagation();removeParam(${p.id})">×</button>
+    <div class="ob-group-header">
+      <span style="flex:1;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--text)">${esc(p.name)||'(unnamed)'}</span>
+      <span class="ptag ${tc}" style="margin-right:4px">${p.type}</span>
+      ${p.valueSource === 'dynamic' ? '<span class="ptag dynamic" style="margin-right:4px">DYNAMIC</span>' : ''}
+      ${isFanoutPrimary ? '<span class="ptag fanout" style="margin-right:4px">FAN-OUT</span>' : ''}
+      <span class="ob-group-edit">&#9998;</span>
+      <button class="param-remove" onclick="event.stopPropagation();removeParam(${p.id})" style="margin-left:6px">×</button>
     </div>
-    <div class="param-body open" id="pb-${p.id}">
-      <div class="row c3">
-        <div class="field" style="grid-column:1/3">
-          <label>Parameter Name <span class="req">*</span></label>
-          <input value="${esc(p.name)}" placeholder="ParameterName"
-            onchange="getP(${p.id}).name=this.value;document.querySelector('#pc-${p.id} .param-name-text').textContent=this.value||'(unnamed)';sync()"/>
-        </div>
-        <div class="field">
-          <label>Type</label>
-          <select onchange="getP(${p.id}).type=this.value;document.querySelector('#pc-${p.id} .param-name-text+.ptag').className='ptag '+this.value;refreshParamVal(${p.id});sync()">
-            <option value="string" ${p.type==='string'?'selected':''}>string</option>
-            <option value="date"   ${p.type==='date'  ?'selected':''}>date</option>
-            <option value="int"    ${p.type==='int'   ?'selected':''}>int</option>
-          </select>
-        </div>
-      </div>
-      <div class="ob-trigger" id="pvs-${p.id}" data-obj-key="param-${p.id}" onclick="toggleParamCard(${p.id})" style="margin-bottom:4px">
-        <div class="ob-trigger-label">Value <span>&#9998;</span></div>
-        <div class="ob-trigger-value empty" id="pvs-text-${p.id}">No value set</div>
-      </div>
-      <div id="pval-${p.id}" style="display:none">${buildParamValSection(p)}</div>
-      <div class="param-adv-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▾ Advanced':'⋯ Advanced'">⋯ Advanced</div>
-      <div class="param-adv-body">
-        <div class="row c2">
-          <div class="field">
-            <label>Required</label>
-            <select onchange="getP(${p.id}).required=this.value==='true';sync()">
-              <option value="true"  ${p.required ?'selected':''}>Required</option>
-              <option value="false" ${!p.required?'selected':''}>Optional</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Sort Order</label>
-            <input type="number" value="${p.sortOrder}" min="1"
-              onchange="getP(${p.id}).sortOrder=parseInt(this.value)||1;sync()"/>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    <div class="ob-group-row" style="border-top:none">
+      <div class="ob-group-row-val" id="pvs-text-${p.id}">${esc(valSummary)}</div>
+    </div>
+    <div id="pval-${p.id}" style="display:none">${buildParamValSection(p)}</div>`;
   return wrap;
 }
 
 function toggleParamCard(id) {
-  const body = document.getElementById('pb-'+id);
-  body.classList.add('open');
   openInObjectBuilder({
     key: 'param-' + id,
     open: () => openParamValueInOB(id),
-    close: () => { _returnOBEditor(); body.classList.remove('open'); },
+    close: () => { _returnOBEditor(); },
   });
 }
 
@@ -1456,7 +1439,6 @@ function refreshParamVal(id) {
   // If currently in OB, close it first so the element is back in the card
   if (activeOBParam === id) _returnOBEditor();
   pvalEl.innerHTML = buildParamValSection(getP(id));
-  document.getElementById('pb-'+id).classList.add('open');
   const pvs = document.getElementById('pvs-text-'+id);
   if (pvs) pvs.textContent = getParamValueSummary(getP(id));
 }
@@ -1481,13 +1463,18 @@ function buildParamValSection(p) {
         <div class="dyn-query-hint">
           Write a SQL <code>SELECT</code> that returns a single column named <code>[Value]</code>.<br>
           Results are fetched at dispatch time and used as the parameter values.<br>
-          Example: <code>SELECT sBRMCode AS [Value] FROM dbo.BRM WHERE bActive = 1</code>
+          ${p.type === 'date'
+            ? '<strong>Date parameters:</strong> <code>[Value]</code> must be in <code>yyyy-MM-dd</code> or <code>yyyy-MM-dd HH:mm:ss</code> format.<br>Example: <code>SELECT CONVERT(VARCHAR, DateCol, 23) AS [Value] FROM dbo.Table</code>'
+            : 'Example: <code>SELECT sBRMCode AS [Value] FROM dbo.BRM WHERE bActive = 1</code>'
+          }
         </div>
         <div class="field">
           <label>SQL Query <span class="req">*</span></label>
           <textarea rows="4" style="font-family:var(--mono);font-size:11px"
             placeholder="SELECT sBRMCode AS [Value]&#10;FROM   dbo.BrokerRelationshipManager&#10;WHERE  bActive = 1&#10;ORDER  BY sBRMCode"
-            oninput="getP(${p.id}).valueQuery=this.value;sync()">${esc(p.valueQuery||'')}</textarea>
+            id="pi-query-${p.id}"
+            oninput="getP(${p.id}).valueQuery=this.value;sync();_validateParamQuery(${p.id})">${esc(p.valueQuery||'')}</textarea>
+          <div id="pi-query-err-${p.id}" class="val-error" style="display:none;margin-top:4px">SQL must contain a column aliased as [Value] or named Value.</div>
         </div>
         <div class="field">
           <label>Fallback Value <span class="hint">used if query fails — can be DYNAMIC</span></label>
@@ -1517,18 +1504,9 @@ function setValueSource(id, src, btn) {
   const p = getP(id);
   p.valueSource = src;
   if (src === 'dynamic' && !p.values.length) p.values = ['DYNAMIC'];
-  // Update dynamic tag on param header
-  const head = document.querySelector('#pc-'+id+' .param-name-text');
-  const dynTag = document.querySelector('#pc-'+id+' .ptag.dynamic');
-  if (src === 'dynamic' && !dynTag) {
-    head.insertAdjacentHTML('afterend', '<span class="ptag dynamic">dynamic</span>');
-  } else if (src === 'static' && dynTag) {
-    dynTag.remove();
-  }
+  // Badge update handled by renderParams()
   const pvalEl = document.getElementById('pval-'+id);
   pvalEl.innerHTML = buildParamValSection(p);
-  // Keep the card body open after rebuild
-  document.getElementById('pb-'+id).classList.add('open');
   sync();
 }
 
@@ -1617,8 +1595,6 @@ function removeVal(id, v) {
   p.values = p.values.filter(x=>x!==v);
   const pvalEl = document.getElementById('pval-'+id);
   pvalEl.innerHTML = buildParamValSection(p);
-  // Keep the card body open after rebuild
-  document.getElementById('pb-'+id).classList.add('open');
   sync();
 }
 
@@ -1951,6 +1927,10 @@ function q(s) { return s===null||s===undefined ? 'NULL' : "'"+String(s).replace(
 function qn(s) { return (!s&&s!==0) ? 'NULL' : q(s); }
 
 function syncCore() {
+  // Delivery mode flags — hoisted so all code in syncCore can reference them
+  const isEmail  = ['EMAIL','BOTH'].includes(delivery);
+  const isFolder = ['FOLDER','BOTH'].includes(delivery);
+
   // Show/hide {{DISPLAYNAME}} token badge based on whether fan-out is active
   const dnBadge = document.getElementById('ph-displayname');
   if (dnBadge) {
@@ -1963,6 +1943,24 @@ function syncCore() {
   }
   updateS3Summary();
   renderRailSummaries();
+  // Update param block value summaries
+  params.forEach(p => {
+    const el = document.getElementById('pvs-text-' + p.id);
+    if (el) el.textContent = getParamValueSummary(p);
+    // Update dynamic/fanout badges
+    const card = document.getElementById('pc-' + p.id);
+    if (card) {
+      const dynTag = card.querySelector('.ptag.dynamic');
+      const isFO = p.id === _foParamId && fanout !== 'NONE';
+      const foTag = card.querySelector('.ptag.fanout');
+      if (p.valueSource === 'dynamic' && !dynTag) {
+        const _edit1 = card.querySelector('.ob-group-header .ob-group-edit'); if(_edit1) _edit1.insertAdjacentHTML('beforebegin', '<span class="ptag dynamic" style="margin-right:4px">DYNAMIC</span>');
+      } else if (p.valueSource !== 'dynamic' && dynTag) { dynTag.remove(); }
+      if (isFO && !foTag) {
+        const _edit2 = card.querySelector('.ob-group-header .ob-group-edit'); if(_edit2) _edit2.insertAdjacentHTML('beforebegin', '<span class="ptag fanout" style="margin-right:4px">FAN-OUT</span>');
+      } else if (!isFO && foTag) { foTag.remove(); }
+    }
+  });
   const docName      = (document.getElementById('docName').value||'').trim();
   const outFmt       = document.getElementById('outputFormat').value;
   const language     = document.getElementById('language').value||1;
@@ -2002,7 +2000,8 @@ function syncCore() {
 
   // Build parametersJson
   let pObjs = [];
-  const foParamId = parseInt(foParam)||0;
+  _foParamId = parseInt(foParam)||0;
+  const foParamId = _foParamId;
 
   params.forEach(p => {
     const val = resolveParamValue(p);
@@ -2025,11 +2024,11 @@ function syncCore() {
         mode: dMode,
         deliveryMethod: delivery,
       };
-      if (['EMAIL','BOTH'].includes(delivery)) {
+      if (isEmail) {
         disp.emailSource = foESrc;
         disp.emailSourceValue = foEVal;
       }
-      if (['FOLDER','BOTH'].includes(delivery)) {
+      if (isFolder) {
         if (foFSrc) { disp.folderSource = foFSrc; disp.folderSourceValue = foFVal; }
       }
       if (foDNSrc) { disp.displayNameSource = foDNSrc; disp.displayNameSourceValue = foDNVal; }
@@ -2039,13 +2038,13 @@ function syncCore() {
       }
       const foSubjectSrc = getFieldSource('fo-subject');
       const foSubjectVal = getFieldValue('fo-subject').trim();
-      if (foSubjectVal) {
+      if (isEmail && foSubjectVal) {
         disp.subjectSource = foSubjectSrc;
         disp.subjectSourceValue = foSubjectVal;
       }
       const foBodySrc = getFieldSource('fo-body');
       const foBodyVal = getFieldValue('fo-body').trim();
-      if (foBodyVal) {
+      if (isEmail && foBodyVal) {
         disp.bodySource = foBodySrc;
         disp.bodySourceValue = foBodyVal;
       }
@@ -2082,37 +2081,45 @@ function syncCore() {
   // No-fanout dispatch config now handled directly in param loop above
 
   // Build @DispatchJson — schedule-level delivery config
+  // Rules: email/subject/body/recipients only included when delivery=EMAIL|BOTH
+  //        folder only included when delivery=FOLDER|BOTH
+  //        filename persists regardless (used as attachment name for EMAIL too)
   const dispatchObj = {};
   dispatchObj.deliveryMethod = delivery;
-  if (['EMAIL','BOTH'].includes(delivery) && dlvEmailVal) {
+
+  if (isEmail && dlvEmailVal) {
     dispatchObj.emailSource = dlvEmailSrc;
     dispatchObj.emailSourceValue = dlvEmailVal;
   }
-  if (['FOLDER','BOTH'].includes(delivery) && bulkFVal) {
+  if (isFolder && bulkFVal) {
     dispatchObj.folderSource = bulkFSrc;
     dispatchObj.folderSourceValue = bulkFVal;
   }
+
+  // FileName persists for all delivery types (attachment name for email, file name for folder)
   const dlvFilenameSrc = getFieldSource('dlv-filename');
   const dlvFilenameVal = getFieldValue('dlv-filename').trim();
-  // FileName — Source/Value pattern only, no fileNameTemplate
   if (dlvFilenameVal) {
     dispatchObj.fileNameSource = dlvFilenameSrc;
     dispatchObj.fileNameSourceValue = dlvFilenameVal;
   }
-  // Subject — always goes into dispatchObj regardless of source
-  const dlvSubjectSrc = getFieldSource('dlv-subject');
-  const dlvSubjectVal = getFieldValue('dlv-subject').trim();
-  if (dlvSubjectVal) {
-    dispatchObj.subjectSource = dlvSubjectSrc;
-    dispatchObj.subjectSourceValue = dlvSubjectVal;
+
+  // Subject and Body — email only
+  if (isEmail) {
+    const dlvSubjectSrc = getFieldSource('dlv-subject');
+    const dlvSubjectVal = getFieldValue('dlv-subject').trim();
+    if (dlvSubjectVal) {
+      dispatchObj.subjectSource = dlvSubjectSrc;
+      dispatchObj.subjectSourceValue = dlvSubjectVal;
+    }
+    const dlvBodySrc = getFieldSource('dlv-body');
+    const dlvBodyVal = getFieldValue('dlv-body').trim();
+    if (dlvBodyVal) {
+      dispatchObj.bodySource = dlvBodySrc;
+      dispatchObj.bodySourceValue = dlvBodyVal;
+    }
   }
-  // Body — always goes into dispatchObj regardless of source
-  const dlvBodySrc = getFieldSource('dlv-body');
-  const dlvBodyVal = getFieldValue('dlv-body').trim();
-  if (dlvBodyVal) {
-    dispatchObj.bodySource = dlvBodySrc;
-    dispatchObj.bodySourceValue = dlvBodyVal;
-  }
+
   const dj = JSON.stringify(dispatchObj, null, 4).replace(/'/g,"''");
   L.push(`    @DispatchJson    = N'${dj}',`);
 
@@ -2123,9 +2130,9 @@ function syncCore() {
     L.push(`    @ParametersJson  = NULL,`);
   }
 
-
-  // Standing Recipients — CC/BCC only, TO lives in @DispatchJson.emailSourceValue
-  const rcps = getRecipients();
+  // Standing Recipients — only included when delivery involves EMAIL
+  // CC/BCC only; TO lives in @DispatchJson.emailSourceValue
+  const rcps = isEmail ? getRecipients() : [];
   if (rcps.length > 0) {
     const rj = JSON.stringify(rcps.map(r=>({email:r.email,role:r.role,includeInFanOut:r.includeInFanOut||false})),null,4).replace(/'/g,"''");
     L.push(`    @RecipientsJson  = N'${rj}';`);
@@ -2404,12 +2411,12 @@ function buildFieldEditor(key, label, required, isFanout) {
     '<div class="dyn-query-hint">' +
     '<strong>Dynamic SQL</strong> — write a SELECT returning <code>[' + alias + ']</code>.<br>' +
     valueHint + '<br>' +
-    'Example: <code>SELECT ' + alias + ' FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'</code>' +
+    'Example: <code>SELECT ' + alias + ' AS [' + alias + '] FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'</code>' +
     '</div>' +
     '<textarea id="' + key + '-dynamic-inp" rows="6"' +
     ' style="font-family:var(--mono);font-size:11px;width:100%"' +
     ' oninput="updateFieldState(\'' + key + '\',\'dynamic\',this.value);validateDynSQL(\'' + key + '\')"' +
-    ' placeholder="SELECT ' + alias + ' FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'"' +
+    ' placeholder="SELECT ' + alias + ' AS [' + alias + '] FROM dbo.YourTable WHERE Code = \'' + exampleVal + '\'"' +
     '>' + esc(state.dynamicVal) + '</textarea>' +
     '<div id="' + key + '-sql-error" class="val-error" style="display:none;margin-top:6px">' +
     'SQL must contain a column aliased as [' + alias + '] or named ' + alias + '.' +
@@ -2475,6 +2482,23 @@ function updateFieldState(key, mode, val) {
 
 const _debouncedValidate = {};
 
+function _validateParamQuery(id) {
+  const p = getP(id);
+  if (!p || p.valueSource !== 'dynamic') return;
+  const q = (document.getElementById('pi-query-' + id)?.value || p.valueQuery || '').trim();
+  const ta = document.getElementById('pi-query-' + id);
+  const errEl = document.getElementById('pi-query-err-' + id);
+  if (!q) {
+    if (ta) ta.style.borderColor = '';
+    if (errEl) errEl.style.display = 'none';
+    return;
+  }
+  const beforeFrom = q.replace(/--[^\n]*/g, '').split(/\bFROM\b/i)[0];
+  const valid = /\[Value\]|\bAS\s+Value\b|\bAS\s+'Value'/i.test(beforeFrom);
+  if (ta) ta.style.borderColor = valid ? '' : 'var(--red)';
+  if (errEl) { errEl.textContent = 'SQL must contain a column aliased as [Value] or named Value.'; errEl.style.display = valid ? 'none' : ''; }
+}
+
 function validateDynSQL(key) {
   clearTimeout(_debouncedValidate[key]);
   _debouncedValidate[key] = setTimeout(() => _runValidateDynSQL(key), 400);
@@ -2483,14 +2507,18 @@ function validateDynSQL(key) {
 function _runValidateDynSQL(key) {
   const state = fieldState[key];
   if (!state || state.mode !== 'dynamic') return;
-  const sql   = state.dynamicVal || '';
-  const alias = FIELD_ALIASES[key] || 'Value';
   const errEl = document.getElementById(key + '-sql-error');
   const taEl  = document.getElementById(key + '-dynamic-inp');
+  // Prefer live textarea value over fieldState (may lag by one event)
+  const sql   = (taEl ? taEl.value : null) || state.dynamicVal || '';
+  const alias = FIELD_ALIASES[key] || 'Value';
   if (!sql.trim()) {
-    if (errEl) errEl.style.display = 'none';
-    if (taEl)  taEl.style.borderColor = '';
-    return;
+    if (errEl) { errEl.textContent = 'Please specify a SQL statement before continuing.'; errEl.style.display = ''; }
+    if (taEl)  {
+      taEl.style.borderColor = 'var(--red)';
+      taEl.style.animation = 'none'; taEl.offsetHeight; taEl.style.animation = 'obj-shake .3s ease';
+    }
+    return true; // block click-away
   }
   const pattern = new RegExp('\\[?' + alias + '\\]?', 'i');
   const valid = pattern.test(sql);
@@ -2503,6 +2531,7 @@ function _runValidateDynSQL(key) {
       taEl.style.animation = 'obj-shake .3s ease';
     }
   }
+  return !valid; // true = invalid (used by group validators to block click-away)
 }
 
 function renderFieldEditorInto(key, containerId, isFanout) {
@@ -2573,6 +2602,49 @@ function openParamValueInOB(id) {
 
   const obBody = document.getElementById('ob-field-body');
   obBody.innerHTML = '';
+  document.getElementById('obj-validation-error')?.remove();
+
+  // Render name/type/advanced header fields inline at top of OB
+  const headerFlds = document.createElement('div');
+  headerFlds.innerHTML = `
+    <div class="grp-section-label" style="border-top:none;margin-top:0;padding-top:0">⚙ Configure Parameter</div>
+    <div class="row c3" style="margin-bottom:8px">
+      <div class="field" style="grid-column:1/3">
+        <label>Parameter Name <span class="req">*</span></label>
+        <input value="${esc(p.name)}" placeholder="ParameterName"
+          oninput="getP(${p.id}).name=this.value;
+            const nt=document.querySelector('#pc-${p.id} .ob-group-header span');
+            if(nt)nt.textContent=this.value||'(unnamed)';
+            sync()"/>
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select onchange="getP(${p.id}).type=this.value;refreshParamVal(${p.id});sync()">
+          <option value="string" ${p.type==='string'?'selected':''}>string</option>
+          <option value="date"   ${p.type==='date'  ?'selected':''}>date</option>
+          <option value="int"    ${p.type==='int'   ?'selected':''}>int</option>
+        </select>
+      </div>
+    </div>
+    <details style="margin-bottom:10px">
+      <summary style="font-size:10px;color:var(--muted);cursor:pointer;user-select:none">Advanced</summary>
+      <div class="row c2" style="margin-top:8px">
+        <div class="field">
+          <label>Required</label>
+          <select onchange="getP(${p.id}).required=this.value==='true';sync()">
+            <option value="true"  ${p.required ?'selected':''}>Required</option>
+            <option value="false" ${!p.required?'selected':''}>Optional</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sort Order</label>
+          <input type="number" value="${p.sortOrder}" min="1"
+            onchange="getP(${p.id}).sortOrder=parseInt(this.value)||1;sync()"/>
+        </div>
+      </div>
+    </details>
+    <div class="grp-section-label">📊 Value</div>`;
+  obBody.appendChild(headerFlds);
 
   pvalEl._obOrigParent  = pvalEl.parentNode;
   pvalEl._obOrigNextSib = pvalEl.nextSibling;
@@ -2597,7 +2669,7 @@ function openParamValueInOB(id) {
     activeObjField = {
       key: 'param-' + id,
       open: () => openParamValueInOB(id),
-      close: () => { _returnOBEditor(); document.getElementById('pb-'+id)?.classList.remove('open'); },
+      close: () => { _returnOBEditor(); },
     };
   }
 
@@ -2620,7 +2692,7 @@ function _returnOBEditor() {
         pvalEl._obOrigParent.appendChild(pvalEl);
       }
     } else {
-      const paramBody = document.getElementById('pb-' + activeOBParam);
+      // pb- divs removed in new layout
       if (paramBody) paramBody.appendChild(pvalEl);
     }
     delete pvalEl._obOrigParent;
@@ -2778,7 +2850,7 @@ function openInObjectBuilder(config) {
     const sameKey = activeObjField.key === config.key;
     const sameSec = config.secId && activeObjField.secId === config.secId;
     // Check whether the previously active section/param is still physically in the OB
-    const isStillOpen = obSectionEl !== null || activeOBParam !== null;
+    const isStillOpen = obSectionEl !== null || activeOBParam !== null || activeObjField.key.startsWith('dlv-grp-') || activeObjField.key.startsWith('fo-grp-');
     if ((sameKey || sameSec) && isStillOpen) {
       // Already open and content is live — no-op (avoids innerHTML='' on live section)
       return;
@@ -2791,7 +2863,11 @@ function openInObjectBuilder(config) {
       // Different item — validate current before switching
       const curKey = activeObjField.key;
       const err = validateObjField(curKey);
-      if (err) { showObjValidationError(err); return; }
+      if (err) {
+        if (typeof err === 'string') showObjValidationError(err);
+        else { const p=document.getElementById('obj-panel'); if(p){p.style.animation='none';p.offsetHeight;p.style.animation='obj-shake .3s ease';} }
+        return;
+      }
       document.getElementById('obj-validation-error')?.remove();
       if (activeObjField.close) activeObjField.close();
       activeObjField = null;
@@ -2826,6 +2902,7 @@ function _openGroupInOB(key, label, contentFn) {
     open: () => {
       const obBody = document.getElementById('ob-field-body');
       obBody.innerHTML = contentFn();
+      document.getElementById('obj-validation-error')?.remove();
       const _fz = document.getElementById('ob-field-zone');
       if (_fz) _fz.style.display = 'flex';
       const _oe = document.getElementById('ob-empty');
@@ -2848,6 +2925,10 @@ function _openGroupInOB(key, label, contentFn) {
       wireTokenDrop(obBody);
       updateOverwriteWarn();
       rcpRender();
+      // Run DynSQL validation on all fields in the group so state is immediately visible
+      ['dlv-email','dlv-subject','dlv-body','dlv-filename','dlv-folder',
+       'fo-email','fo-subject','fo-body','fo-filename','fo-folder','fo-displayname']
+        .forEach(k => { if (fieldState[k] && fieldState[k].mode === 'dynamic') _runValidateDynSQL(k); });
     },
     close: () => {
       document.querySelectorAll('.ob-group').forEach(el => el.classList.remove('active'));
@@ -2872,7 +2953,7 @@ function openFanoutGroup(group) {
 }
 
 function _grpSection(icon, label, noPrefix) {
-  const prefix = noPrefix ? '' : 'Configure ';
+  const prefix = noPrefix ? '' : '';
   return '<div class="grp-section-label">' + icon + ' ' + prefix + label + '</div>';
 }
 
@@ -3127,6 +3208,13 @@ function validateObjField(section) {
     if (p.valueSource === 'dynamic') {
       const q = (document.getElementById('pi-query-' + p.id)?.value || p.valueQuery || '').trim();
       if (!q) return 'SQL Query is required for Dynamic Query parameters.';
+      // [Value] alias — block close + shake, inline error only (no banner)
+      const beforeFrom = q.replace(/--[^\n]*/g, '').split(/\bFROM\b/i)[0];
+      const hasValueAlias = /\[Value\]|\bAS\s+Value\b|\bAS\s+'Value'/i.test(beforeFrom);
+      if (!hasValueAlias) {
+        _validateParamQuery(p.id);
+        return true; // truthy = block close, but not a string = no banner
+      }
     } else if (p.type === 'date') {
       // token mode always has a default — no block needed
     } else {
@@ -3135,6 +3223,12 @@ function validateObjField(section) {
     }
     return null;
   }
+  // Group keys — must be checked before field keys (both start with dlv-/fo-)
+  if (section === 'dlv-grp-email')      return validateDeliveryGroup('email');
+  if (section === 'dlv-grp-folder')     return validateDeliveryGroup('folder');
+  if (section === 'fo-grp-email')       return validateFanoutGroup('email');
+  if (section === 'fo-grp-folder')      return validateFanoutGroup('folder');
+  if (section === 'fo-grp-displayname') return validateFanoutGroup('displayname');
   if (section.startsWith('dlv-')) return validateDeliveryField(section);
   if (section.startsWith('fo-'))  return validateFanoutField(section);
   return null;
@@ -3143,14 +3237,20 @@ function validateObjField(section) {
 function validateDeliveryGroup(group) {
   if (group === 'email') {
     if (!['EMAIL','BOTH'].includes(delivery)) return null;
-    if (!getFieldValue('dlv-email').trim())   return 'TO email address is required.';
-    if (!getFieldValue('dlv-subject').trim()) return 'Email subject is required.';
-    if (!getFieldValue('dlv-body').trim())    return 'Email body is required.';
+    if (!getFieldValue('dlv-email').trim())    return 'TO email address is required.';
+    if (getFieldSource('dlv-email') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-email')) return true;
+    if (!getFieldValue('dlv-subject').trim())  return 'Email subject is required.';
+    if (getFieldSource('dlv-subject') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-subject')) return true;
+    if (!getFieldValue('dlv-body').trim())     return 'Email body is required.';
+    if (getFieldSource('dlv-body') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-body')) return true;
+    if (getFieldSource('dlv-filename') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-filename')) return true;
     return null;
   }
   if (group === 'folder') {
     if (!['FOLDER','BOTH'].includes(delivery)) return null;
     if (!getFieldValue('dlv-folder').trim())   return 'Folder path is required.';
+    if (getFieldSource('dlv-folder') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-folder')) return true;
+    if (getFieldSource('dlv-filename') === 'DYNAMIC_SQL' && _runValidateDynSQL('dlv-filename')) return true;
     if (fanout === 'INDIVIDUAL' || fanout === 'BOTH') {
       const foFn  = getFieldValue('fo-filename').trim();
       const foFol = getFieldValue('fo-folder').trim();
@@ -3167,10 +3267,16 @@ function validateFanoutGroup(group) {
   if (group === 'email') {
     if (!['EMAIL','BOTH'].includes(delivery)) return null;
     if (!getFieldValue('fo-email').trim()) return 'Per-entity email resolver is required.';
+    if (getFieldSource('fo-email') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-email')) return true;
+    if (getFieldSource('fo-subject') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-subject')) return true;
+    if (getFieldSource('fo-body') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-body')) return true;
+    if (getFieldSource('fo-filename') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-filename')) return true;
     return null;
   }
   if (group === 'folder') {
     if (!['FOLDER','BOTH'].includes(delivery)) return null;
+    if (getFieldSource('fo-folder') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-folder')) return true;
+    if (getFieldSource('fo-filename') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-filename')) return true;
     if (fanout === 'INDIVIDUAL' || fanout === 'BOTH') {
       const foFn  = getFieldValue('fo-filename').trim();
       const foFol = getFieldValue('fo-folder').trim();
@@ -3183,6 +3289,7 @@ function validateFanoutGroup(group) {
     if (!displayNameUsed()) return null;
     if (!getFieldValue('fo-displayname').trim())
       return '{{DISPLAYNAME}} is used but Entity Label has no resolver configured.';
+    if (getFieldSource('fo-displayname') === 'DYNAMIC_SQL' && _runValidateDynSQL('fo-displayname')) return true;
     return null;
   }
   return null;
@@ -3225,12 +3332,13 @@ function validateDeliveryField(field) {
   return null;
 }
 
+function displayNameUsed() {
+  const keys = ['dlv-subject','dlv-body','dlv-filename','fo-subject','fo-body','fo-filename'];
+  return keys.some(k => getFieldValue(k).includes('{{DISPLAYNAME}}'));
+}
+
 function validateFanoutField(field) {
   if (fanout === 'NONE') return null;
-  function displayNameUsed() {
-    const keys = ['dlv-subject','dlv-body','dlv-filename','fo-subject','fo-body','fo-filename'];
-    return keys.some(k => getFieldValue(k).includes('{{DISPLAYNAME}}'));
-  }
   if (field === 'fo-email') {
     if (!['EMAIL','BOTH'].includes(delivery)) return null;
     const val = getFieldValue('fo-email').trim();
@@ -3295,13 +3403,15 @@ document.addEventListener('click', function(e) {
   const inStepHeader = e.target.closest('.step-header');
 
   if (inObjPanel || inTokSide || inRightPanel || inLoadPanel || inStepHeader) return;
-  if (onObTrigger || onObGroup) return;
+  if (onObTrigger) return;
+  // Note: onObGroup is NOT excluded — clicking another group must still validate current
 
   // Skip validation for fan-out fields when fan-out mode is NONE
   const skipFoVal = activeObjField.key && activeObjField.key.startsWith('fo-') && fanout === 'NONE';
   const err = skipFoVal ? null : validateObjField(activeObjField.key);
   if (err) {
-    showObjValidationError(err);
+    if (typeof err === 'string') showObjValidationError(err);
+    else { const p=document.getElementById('obj-panel'); if(p){p.style.animation='none';p.offsetHeight;p.style.animation='obj-shake .3s ease';} }
     return;
   }
   clearObjectBuilder();
