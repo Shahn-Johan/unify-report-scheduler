@@ -107,12 +107,12 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 | `docs/flowgear_integration.md` | Flowgear node sequence + dispatch behaviour | ✅ Current |
 | `docs/execution_flow.md` | Complete dispatch pipeline walkthrough | ✅ Current |
 | `docs/html_builder.md` | HTML builder internals for future devs | ✅ Current |
-| `docs/configuration_guide.md` | Configuration reference | ⚠ Stale — references removed architecture |
+| `docs/configuration_guide.md` | Configuration reference | ✅ Current |
 | `sql/samples/register_schedule_sample.sql` | Full-featured EXEC sample (v3 API) | ✅ Current |
 | `sql/samples/test_dispatch_sample.sql` | TestDispatch call + expected output | ✅ Current |
-| `sql/samples/scheduling_agent_samples.sql` | Sample registrations | ⚠ Stale — old API |
+| `sql/samples/scheduling_agent_samples.sql` | Sample registrations | ✅ Current |
 | `sql/tests/validation_checklist.md` | Manual QA checklist | ✅ Current |
-| `sql/tests/scheduling_agent_test_suite.sql` | Test schedules | ⚠ Stale — old API |
+| `sql/tests/scheduling_agent_test_suite.sql` | Test schedules | ✅ Current |
 
 ---
 
@@ -143,6 +143,9 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 - [x] `sql/samples/register_schedule_sample.sql` — 5 samples covering BOTH delivery, DYNAMIC_SQL email, per-entity overrides, ADHOC, INTERVAL, multiple non-primary params, date tokens, CC/BCC with IncludeInFanOut variants
 - [x] `sql/samples/test_dispatch_sample.sql` — TestDispatch call patterns (@KeepResults, @AsOf) + detailed expected output shapes for fan-out and no-fan-out cases
 - [x] `sql/tests/validation_checklist.md` — 13-section manual QA checklist covering deploy, registration, dispatch queue correctness, token resolution, round-trip, HTML builder functional checks
+- [x] `docs/configuration_guide.md` — rewritten to v3 API: @DispatchJson/@ParametersJson/fanOut structure, STATIC/DYNAMIC_SQL only, CC/BCC-only recipients, correct table names, fn_FetchDocumentId @ScheduleID signature
+- [x] `sql/samples/scheduling_agent_samples.sql` — rewritten to v3 API: @DispatchJson, fanOut key, DYNAMIC_SQL sources, no @Subject/@BodyTemplate
+- [x] `sql/tests/scheduling_agent_test_suite.sql` — rewritten to v3 API: DYNAMIC_SQL replaces LOOKUP_VIEW/SCALAR_FN; dbo.TestEntity stub only; all EXEC calls use @DispatchJson + fanOut block
 
 ### HTML builder
 
@@ -180,11 +183,6 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 - [x] **GitHub push** — both source-of-truth files pushed to origin/main
 
 ### Should do
-
-- [ ] **`docs/configuration_guide.md` — full rewrite**
-  File is stale: references LOOKUP_VIEW/SCALAR_FN source options, old `@Subject`/
-  `@BodyTemplate` proc parameters, and `Recipient`/`ScheduleRecipient` tables that
-  no longer exist. Rewrite to match current Source/Value-only architecture.
 
 - [ ] **Verify `{{TODAY-7}}` / `{{TODAY+3}}` offset token resolution**
   `fn_ResolveDateToken` handles dynamic offsets. Verify the regex pattern correctly

@@ -383,11 +383,3 @@ Status           PENDING | SENT | SUCCESS | FAILED | SKIPPED
 CreatedAt, ProcessedAt, ErrorMessage
 ```
 
----
-
-## Notes for next sessions
-
-- `fn_FetchDocumentId` body queries `dbo.Document / sName / bEnabled` — verify column names match the actual target environment before go-live
-- `docs/configuration_guide.md` is **stale**: references LOOKUP_VIEW/SCALAR_FN source options, old `@Subject`/`@BodyTemplate` proc parameters, `dispatch` JSON key (should be `fanOut`), `BULK` mode (should be `COMBINED`), and `Recipient`/`ScheduleRecipient` tables that no longer exist. Do not use as implementation reference.
-- `sql/samples/scheduling_agent_samples.sql` and `sql/tests/scheduling_agent_test_suite.sql` are **stale** — both use the old API (`@Subject`/`@BodyTemplate`, `dispatch` key, LOOKUP_VIEW/SCALAR_FN, `BULK` mode). Use `sql/samples/register_schedule_sample.sql` instead.
-- Source of truth for both deliverables is the committed repo — push `sql/deploy/scheduling_agent_v3.sql` and `tools/schedule_builder.html` after every significant change

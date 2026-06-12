@@ -1,14 +1,14 @@
 -- ============================================================
---  SCHEDULING AGENT  |  COMPLETE TEST SUITE
+--  SCHEDULING AGENT v3  |  COMPLETE TEST SUITE
 --  Every meaningful combination of schedule, dispatch mode,
---  delivery method, email source, and resolver type.
+--  delivery method, and resolver type.
 --
 --  RUN ORDER:
---    1. Section 0  -- prerequisite lookup objects
---    2. Section 1  -- frequency type tests        (5 schedules)
+--    1. Section 0  -- prerequisite stub data
+--    2. Section 1  -- frequency type tests        (6 schedules)
 --    3. Section 2  -- dispatch mode tests         (3 schedules)
 --    4. Section 3  -- delivery method tests       (3 schedules)
---    5. Section 4  -- email source tests          (4 schedules)
+--    5. Section 4  -- email source tests          (3 schedules)
 --    6. Section 5  -- resolver combination tests  (6 schedules)
 --    7. Section 6  -- parameter-free tests        (2 schedules)
 --    8. Section 7  -- test execution commands
@@ -16,12 +16,12 @@
 
 
 -- ============================================================
---  SECTION 0  PREREQUISITE LOOKUP OBJECTS
---  Simulate the real tables with stub data so every resolver
---  type can be tested without needing production tables.
+--  SECTION 0  PREREQUISITE STUB DATA
+--  dbo.TestEntity backs all DYNAMIC_SQL queries in this suite.
+--  LOOKUP_VIEW and SCALAR_FN source types are not supported in
+--  v3 — DYNAMIC_SQL queries reference dbo.TestEntity directly.
 -- ============================================================
 
--- Stub table backing all views below
 IF OBJECT_ID('dbo.TestEntity', 'U') IS NOT NULL DROP TABLE dbo.TestEntity;
 CREATE TABLE dbo.TestEntity (
     EntityCode      NVARCHAR(50)    NOT NULL PRIMARY KEY,
@@ -39,302 +39,219 @@ VALUES
     ('E003', 'Entity Three', 'e003@test.com', '\\server\reports\E003\', 'E003_Report.xlsx');
 GO
 
--- LOOKUP_VIEW for email (LookupKey + EmailAddress)
-CREATE OR ALTER VIEW [schdl].[vw_TestEmail]
-AS
-    SELECT EntityCode AS LookupKey, EmailAddress FROM dbo.TestEntity;
-GO
-
--- LOOKUP_VIEW for display name (LookupKey + DisplayName)
-CREATE OR ALTER VIEW [schdl].[vw_TestDisplayName]
-AS
-    SELECT EntityCode AS LookupKey, EntityName AS DisplayName FROM dbo.TestEntity;
-GO
-
--- LOOKUP_VIEW for folder path (LookupKey + FolderPath)
-CREATE OR ALTER VIEW [schdl].[vw_TestFolderPath]
-AS
-    SELECT EntityCode AS LookupKey, FolderPath FROM dbo.TestEntity;
-GO
-
--- LOOKUP_VIEW for filename (LookupKey + FileName)
-CREATE OR ALTER VIEW [schdl].[vw_TestFileName]
-AS
-    SELECT EntityCode AS LookupKey, FileName FROM dbo.TestEntity;
-GO
-
--- Combined view — all four resolvers from one view
-CREATE OR ALTER VIEW [schdl].[vw_TestAll]
-AS
-    SELECT
-        EntityCode  AS LookupKey,
-        EmailAddress,
-        EntityName  AS DisplayName,
-        FolderPath,
-        FileName
-    FROM dbo.TestEntity;
-GO
-
--- SCALAR_FN for email
-CREATE OR ALTER FUNCTION [dbo].[fn_TestGetEmail]
-(
-    @EntityCode NVARCHAR(50)
-)
-RETURNS NVARCHAR(320)
-AS
-BEGIN
-    DECLARE @Email NVARCHAR(320);
-    SELECT @Email = EmailAddress FROM dbo.TestEntity WHERE EntityCode = @EntityCode;
-    RETURN @Email;
-END;
-GO
-
--- SCALAR_FN for display name
-CREATE OR ALTER FUNCTION [dbo].[fn_TestGetDisplayName]
-(
-    @EntityCode NVARCHAR(50)
-)
-RETURNS NVARCHAR(500)
-AS
-BEGIN
-    DECLARE @Name NVARCHAR(500);
-    SELECT @Name = EntityName FROM dbo.TestEntity WHERE EntityCode = @EntityCode;
-    RETURN @Name;
-END;
-GO
-
--- SCALAR_FN for folder path
-CREATE OR ALTER FUNCTION [dbo].[fn_TestGetFolderPath]
-(
-    @EntityCode NVARCHAR(50)
-)
-RETURNS NVARCHAR(1000)
-AS
-BEGIN
-    DECLARE @Folder NVARCHAR(1000);
-    SELECT @Folder = FolderPath FROM dbo.TestEntity WHERE EntityCode = @EntityCode;
-    RETURN @Folder;
-END;
-GO
-
 
 -- ============================================================
 --  SECTION 1  FREQUENCY TYPE TESTS
---  One schedule per FrequencyType, all using BULK+STATIC
---  to keep delivery simple while testing the timing logic.
+--  One schedule per FrequencyType. All use COMBINED delivery
+--  with a STATIC email address to isolate timing logic.
 -- ============================================================
 
 -- 1.1  DAILY
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Daily',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-01 Daily at 07:00',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'Daily Test - {{TODAY}}',
-    @BodyTemplate    = 'Daily report for {{TODAY}}.',
-    @ParametersJson  = N'[
-        {
-            "name": "AsOfDate", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{TODAY}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-daily@example.com"
-            }
-        }
-    ]',
-    @RecipientsJson  = N'[{"name":"Daily CC","email":"daily-cc@example.com","role":"CC"}]';
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Daily',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-01 Daily at 07:00',
+    @FrequencyType   = N'DAILY',
+    @RunTime         = N'07:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-daily@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Daily Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "AsOfDate", "type": "string", "required": true, "sortOrder": 1, "value": "{{TODAY}}" }
+    ]';
 GO
 
 -- 1.2  WEEKLY (Monday)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Weekly',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-02 Weekly Monday 08:00',
-    @FrequencyType   = 'WEEKLY',
-    @RunTime         = '08:00',
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Weekly',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-02 Weekly Monday 08:00',
+    @FrequencyType   = N'WEEKLY',
+    @RunTime         = N'08:00',
     @DayOfWeek       = 1,
-    @Subject         = 'Weekly Test - {{PREV_WEEK_START}} to {{PREV_WEEK_END}}',
-    @BodyTemplate    = 'Weekly report covering {{PREV_WEEK_START}} to {{PREV_WEEK_END}}.',
-    @ParametersJson  = N'[
-        {
-            "name": "WeekStart", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{PREV_WEEK_START}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-weekly@example.com"
-            }
-        },
-        { "name": "WeekEnd", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_WEEK_END}}" }
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-weekly@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Weekly Test - {{PREV_WEEK_START}} to {{PREV_WEEK_END}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "WeekStart", "type": "string", "required": true, "sortOrder": 1, "value": "{{PREV_WEEK_START}}" },
+        { "name": "WeekEnd",   "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_WEEK_END}}"   }
     ]';
 GO
 
 -- 1.3  MONTHLY (1st of month)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Monthly',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-03 Monthly 1st at 06:00',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Monthly',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-03 Monthly 1st at 06:00',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Monthly Test - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}',
-    @BodyTemplate    = 'Monthly report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.',
-    @ParametersJson  = N'[
-        {
-            "name": "StartDate", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{PREV_MONTH_START}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-monthly@example.com"
-            }
-        },
-        { "name": "EndDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-monthly@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Monthly Test - {{PREV_MONTH_START}} to {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "StartDate", "type": "string", "required": true, "sortOrder": 1, "value": "{{PREV_MONTH_START}}" },
+        { "name": "EndDate",   "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}"   }
     ]';
 GO
 
--- 1.4  MONTHLY (last day of month)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Monthly Last Day',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-04 Monthly Last Day 23:00',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '23:00',
+-- 1.4  MONTHLY (last day of month — DayOfMonth = -1)
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Monthly Last Day',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-04 Monthly Last Day 23:00',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'23:00',
     @DayOfMonth      = -1,
-    @Subject         = 'Month End Test - {{MONTH_END}}',
-    @ParametersJson  = N'[
-        {
-            "name": "ReportDate", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{MONTH_END}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-monthend@example.com"
-            }
-        }
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-monthend@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Month End Test - {{MONTH_END}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 1, "value": "{{MONTH_END}}" }
     ]';
 GO
 
--- 1.5  ADHOC (fires once then disables)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Adhoc',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-05 Adhoc One Shot',
-    @FrequencyType   = 'ADHOC',
-    @Subject         = 'Adhoc Test - {{TODAY}}',
-    @ParametersJson  = N'[
-        {
-            "name": "RunDate", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{TODAY}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-adhoc@example.com"
-            }
-        }
+-- 1.5  ADHOC (fires once then sets IsActive = 0)
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Adhoc',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-05 Adhoc One Shot',
+    @FrequencyType   = N'ADHOC',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-adhoc@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Adhoc Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "RunDate", "type": "string", "required": true, "sortOrder": 1, "value": "{{TODAY}}" }
     ]';
 GO
 
--- 1.6  INTERVAL (every 60 minutes, 07:00–19:00 window)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Interval',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-FREQ-06 Interval 60min 07:00-19:00',
-    @FrequencyType   = 'INTERVAL',
+-- 1.6  INTERVAL (every 60 minutes, 07:00-19:00 window)
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Interval',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-FREQ-06 Interval 60min 07:00-19:00',
+    @FrequencyType   = N'INTERVAL',
     @IntervalMinutes = 60,
-    @WindowStart     = '07:00',
-    @WindowEnd       = '19:00',
-    @Subject         = 'Interval Test - {{TODAY}}',
-    @ParametersJson  = N'[
-        {
-            "name": "AsOf", "type": "date", "required": true, "sortOrder": 1,
-            "value": "{{TODAY}}",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC", "bulkEmail": "test-interval@example.com"
-            }
-        }
+    @WindowStart     = N'07:00',
+    @WindowEnd       = N'19:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "test-interval@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Interval Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "AsOf", "type": "string", "required": true, "sortOrder": 1, "value": "{{TODAY}}" }
     ]';
 GO
 
 
 -- ============================================================
 --  SECTION 2  DISPATCH MODE TESTS
---  Tests BULK, INDIVIDUAL, BOTH — all using STATIC email
---  and LOOKUP_VIEW so both dispatch paths are exercised.
+--  Tests COMBINED, INDIVIDUAL, BOTH dispatch modes.
 -- ============================================================
 
--- 2.1  BULK — all values in one request, one email
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Dispatch',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DISP-01 COMBINED Mode',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 2.1  COMBINED -- all values in one request, one email
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Dispatch',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DISP-01 COMBINED Mode',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Bulk Dispatch Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC",
-                "bulkEmail": "bulk-recipient@example.com"
-            }
-        },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "combined-recipient@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Combined Dispatch Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1, "value": "E001|E002|E003" },
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]',
-    @RecipientsJson  = N'[{"name":"Bulk BCC","email":"bulk-bcc@example.com","role":"BCC"}]';
+    @RecipientsJson = N'[{ "email": "combined-bcc@example.com", "role": "BCC", "includeInFanOut": false }]';
 GO
 
--- 2.2  INDIVIDUAL — one request per value, email resolved per value
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Dispatch',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DISP-02 INDIVIDUAL Mode',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 2.2  INDIVIDUAL -- one request per value, email resolved per entity
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Dispatch',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DISP-02 INDIVIDUAL Mode',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Individual Dispatch Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Individual Dispatch Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource": "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_TestEmail"
+            "fanOut": {
+                "isPrimary":       true,
+                "mode":            "INDIVIDUAL",
+                "emailSource":     "DYNAMIC_SQL",
+                "emailSourceValue":"SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]',
-    @RecipientsJson  = N'[{"name":"Ind CC","email":"individual-cc@example.com","role":"CC"}]';
+    @RecipientsJson = N'[{ "email": "individual-cc@example.com", "role": "CC", "includeInFanOut": true }]';
 GO
 
--- 2.3  BOTH — individual rows + one bulk row
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Dispatch',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DISP-03 BOTH Mode',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 2.3  BOTH -- individual rows AND one combined row
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Dispatch',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DISP-03 BOTH Mode',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Both Dispatch Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "bulk-summary@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Both Dispatch Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "BOTH", "deliveryMethod": "EMAIL",
-                "emailSource": "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_TestEmail",
-                "bulkEmail": "bulk-summary@example.com"
+            "fanOut": {
+                "isPrimary":       true,
+                "mode":            "BOTH",
+                "emailSource":     "DYNAMIC_SQL",
+                "emailSourceValue":"SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]';
 GO
 
@@ -345,516 +262,565 @@ GO
 -- ============================================================
 
 -- 3.1  EMAIL only delivery
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Delivery',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DELIV-01 EMAIL Delivery',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Delivery',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DELIV-01 EMAIL Delivery',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Email Delivery Test - {{PREV_MONTH_END}}',
-    @BodyTemplate    = 'Report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}} attached.',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Email Delivery Test - {{PREV_MONTH_END}}",
+        "bodySource":          "STATIC",
+        "bodySourceValue":     "Report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}} attached."
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":            "LOOKUP_VIEW",
-                "emailSourceValue":       "schdl.vw_TestEmail",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName"
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "INDIVIDUAL",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]';
 GO
 
 -- 3.2  FOLDER only delivery
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Delivery',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DELIV-02 FOLDER Delivery',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Delivery',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DELIV-02 FOLDER Delivery',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = NULL,
-    @BodyTemplate    = NULL,
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "FOLDER",
+        "folderSource":        "STATIC",
+        "folderSourceValue":   "\\\\server\\reports\\combined",
+        "fileNameSource":      "STATIC",
+        "fileNameSourceValue": "Report_Consolidated_{{PREV_MONTH_END}}.xlsx"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "FOLDER",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName",
-                "fileNameTemplate":       "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
-                "folderSource":           "LOOKUP_VIEW",
-                "folderSourceValue":      "schdl.vw_TestFolderPath",
-                "bulkFolderPath":         "\\server\reports\Bulk\"
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "INDIVIDUAL",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":         "STATIC",
+                "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
+                "folderSource":           "DYNAMIC_SQL",
+                "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]';
 GO
 
--- 3.3  BOTH delivery — email AND folder drop per row
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Delivery',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-DELIV-03 BOTH Delivery',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 3.3  BOTH delivery -- email AND folder drop per row
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Delivery',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-DELIV-03 BOTH Delivery',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Both Delivery Test - {{PREV_MONTH_END}}',
-    @BodyTemplate    = 'Report attached and dropped to your folder.',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "BOTH",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "bulk-both@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Both Delivery Test - {{PREV_MONTH_END}}",
+        "bodySource":          "STATIC",
+        "bodySourceValue":     "Report attached and dropped to your folder.",
+        "folderSource":        "STATIC",
+        "folderSourceValue":   "\\\\server\\reports\\combined"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "BOTH", "deliveryMethod": "BOTH",
-                "emailSource":            "LOOKUP_VIEW",
-                "emailSourceValue":       "schdl.vw_TestEmail",
-                "bulkEmail":              "bulk-both@example.com",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName",
-                "fileNameTemplate":       "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
-                "folderSource":           "LOOKUP_VIEW",
-                "folderSourceValue":      "schdl.vw_TestFolderPath",
-                "bulkFolderPath":         "\\server\reports\Bulk\"
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "BOTH",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "folderSource":           "DYNAMIC_SQL",
+                "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]',
-    @RecipientsJson  = N'[{"name":"Both CC","email":"both-cc@example.com","role":"CC"}]';
+    @RecipientsJson = N'[{ "email": "both-cc@example.com", "role": "CC", "includeInFanOut": true }]';
 GO
 
 
 -- ============================================================
 --  SECTION 4  EMAIL SOURCE TESTS
---  One schedule per EmailSource type (STATIC, LOOKUP_VIEW,
---  SCALAR_FN, DYNAMIC_SQL). All INDIVIDUAL so every value
---  triggers a lookup.
+--  STATIC and DYNAMIC_SQL -- the only supported source types.
+--  LOOKUP_VIEW and SCALAR_FN are not supported in v3.
 -- ============================================================
 
--- 4.1  STATIC email — literal address, no lookup
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Email Source',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-ESRC-01 STATIC Email',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'Static Email Test - {{TODAY}}',
-    @ParametersJson  = N'[
+-- 4.1  STATIC email -- literal address, COMBINED (no fan-out)
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Email Source',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-ESRC-01 STATIC Email',
+    @FrequencyType   = N'DAILY',
+    @RunTime         = N'07:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "static-recipient@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Static Email Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1, "value": "E001|E002|E003" }
+    ]';
+GO
+
+-- 4.2  DYNAMIC_SQL email -- resolved per entity via INDIVIDUAL fan-out
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Email Source',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-ESRC-02 DYNAMIC_SQL Email INDIVIDUAL',
+    @FrequencyType   = N'DAILY',
+    @RunTime         = N'07:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Dynamic SQL Email Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "COMBINED", "deliveryMethod": "EMAIL",
-                "emailSource": "STATIC",
-                "bulkEmail":   "static-recipient@example.com"
+            "fanOut": {
+                "isPrimary":       true,
+                "mode":            "INDIVIDUAL",
+                "emailSource":     "DYNAMIC_SQL",
+                "emailSourceValue":"SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         }
     ]';
 GO
 
--- 4.2  LOOKUP_VIEW email — email resolved from view per value
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Email Source',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-ESRC-02 LOOKUP_VIEW Email',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'Lookup View Email Test - {{TODAY}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":      "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_TestEmail"
-            }
-        }
-    ]';
-GO
-
--- 4.3  SCALAR_FN email — email resolved via scalar function per value
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Email Source',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-ESRC-03 SCALAR_FN Email',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'Scalar Fn Email Test - {{TODAY}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":      "SCALAR_FN",
-                "emailSourceValue": "dbo.fn_TestGetEmail"
-            }
-        }
-    ]';
-GO
-
--- 4.4  DYNAMIC_SQL email — email resolved via inline SQL per value
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Email Source',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-ESRC-04 DYNAMIC_SQL Email',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'Dynamic SQL Email Test - {{TODAY}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":      "DYNAMIC_SQL",
-                "emailSourceValue": "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
-            }
-        }
+-- 4.3  DYNAMIC_SQL email -- schedule-level query (COMBINED, no fan-out)
+--      Tests that a SELECT returning one address is resolved at the schedule level.
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Email Source',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-ESRC-03 DYNAMIC_SQL Email COMBINED',
+    @FrequencyType   = N'DAILY',
+    @RunTime         = N'07:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "DYNAMIC_SQL",
+        "emailSourceValue":    "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''E001''",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Dynamic SQL Combined Email Test - {{TODAY}}"
+    }',
+    @ParametersJson = N'[
+        { "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1, "value": "E001" }
     ]';
 GO
 
 
 -- ============================================================
 --  SECTION 5  RESOLVER COMBINATION TESTS
---  DisplayName, FileName, FolderPath resolvers tested in
---  isolation and in combination.
+--  DisplayName, FileName, FolderPath resolvers in isolation
+--  and in combination. All use DYNAMIC_SQL source type.
 -- ============================================================
 
--- 5.1  DisplayName only — LOOKUP_VIEW, appended to email subject
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Resolvers',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-01 DisplayName LOOKUP_VIEW',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 5.1  DisplayName DYNAMIC_SQL -- resolved per entity
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Resolvers',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-01 DisplayName DYNAMIC_SQL',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Resolver Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Resolver Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":            "LOOKUP_VIEW",
-                "emailSourceValue":       "schdl.vw_TestEmail",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName"
-            }
-        },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
-    ]';
-GO
-
--- 5.2  FileName via SCALAR_FN
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Resolvers',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-02 FileName SCALAR_FN',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
-    @DayOfMonth      = 1,
-    @Subject         = 'Filename Scalar Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":      "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_TestEmail",
-                "fileNameSource":   "SCALAR_FN",
-                "fileNameSourceValue": "dbo.fn_TestGetEmail"
-            }
-        },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
-    ]';
-GO
-
--- 5.3  FileNameTemplate with {{DISPLAYNAME}} and {{TOKEN}}
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Resolvers',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-03 FileNameTemplate',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
-    @DayOfMonth      = 1,
-    @Subject         = 'FileNameTemplate Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "EMAIL",
-                "emailSource":            "LOOKUP_VIEW",
-                "emailSourceValue":       "schdl.vw_TestEmail",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName",
-                "fileNameTemplate":       "Report_{{DISPLAYNAME}}_{{PREV_MONTH_START}}_{{PREV_MONTH_END}}.xlsx"
-            }
-        },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
-    ]';
-GO
-
--- 5.4  FolderPath via DYNAMIC_SQL
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Resolvers',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-04 FolderPath DYNAMIC_SQL',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
-    @DayOfMonth      = 1,
-    @Subject         = NULL,
-    @ParametersJson  = N'[
-        {
-            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
-            "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "INDIVIDUAL", "deliveryMethod": "FOLDER",
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "INDIVIDUAL",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName AS DisplayName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
-                "fileNameTemplate":       "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
-                "folderSource":           "DYNAMIC_SQL",
-                "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
-                "bulkFolderPath":         "\\server\reports\Bulk\"
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate", "type": "date", "required": true, "sortOrder": 2,
-          "value": "{{PREV_MONTH_END}}" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
     ]';
 GO
 
--- 5.5  All four resolvers from one combined view (EMAIL+FOLDER BOTH)
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Resolvers',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-05 All Resolvers Combined View',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+-- 5.2  FileName DYNAMIC_SQL -- per-entity filename from query
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Resolvers',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-02 FileName DYNAMIC_SQL',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'All Resolvers Test - {{PREV_MONTH_END}}',
-    @BodyTemplate    = 'Report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Filename Dynamic SQL Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "BOTH", "deliveryMethod": "BOTH",
-                "emailSource":            "LOOKUP_VIEW",
-                "emailSourceValue":       "schdl.vw_TestAll",
-                "bulkEmail":              "bulk-all@example.com",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestAll",
-                "fileNameTemplate":       "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
-                "folderSource":           "LOOKUP_VIEW",
-                "folderSourceValue":      "schdl.vw_TestAll",
-                "bulkFolderPath":         "\\server\reports\Bulk\"
+            "fanOut": {
+                "isPrimary":         true,
+                "mode":              "INDIVIDUAL",
+                "emailSource":       "DYNAMIC_SQL",
+                "emailSourceValue":  "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":    "DYNAMIC_SQL",
+                "fileNameSourceValue":"SELECT FileName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
-        { "name": "ReportDate",  "type": "date",   "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" },
-        { "name": "StartDate",   "type": "date",   "required": true, "sortOrder": 3, "value": "{{PREV_MONTH_START}}" },
-        { "name": "EntityType",  "type": "string", "required": true, "sortOrder": 4, "value": "ENTITY" },
-        { "name": "PaymentTerms","type": "string", "required": true, "sortOrder": 5, "value": "0|1|2|3|4" }
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
+    ]';
+GO
+
+-- 5.3  FileNameSource STATIC with {{DISPLAYNAME}} and {{TOKEN}}
+--      Verifies {{DISPLAYNAME}} is resolved after fn_ResolveAllTokens.
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Resolvers',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-03 FileName Static with Tokens',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
+    @DayOfMonth      = 1,
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "fallback@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Filename Token Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
+        {
+            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
+            "value": "E001|E002|E003",
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "INDIVIDUAL",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":         "STATIC",
+                "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_START}}_{{PREV_MONTH_END}}.xlsx"
+            }
+        },
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
+    ]';
+GO
+
+-- 5.4  FolderPath DYNAMIC_SQL -- per-entity folder path
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Resolvers',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-04 FolderPath DYNAMIC_SQL',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
+    @DayOfMonth      = 1,
+    @DispatchJson = N'{
+        "deliveryMethod":      "FOLDER",
+        "folderSource":        "STATIC",
+        "folderSourceValue":   "\\\\server\\reports\\combined",
+        "fileNameSource":      "STATIC",
+        "fileNameSourceValue": "Report_{{PREV_MONTH_END}}.xlsx"
+    }',
+    @ParametersJson = N'[
+        {
+            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
+            "value": "E001|E002|E003",
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "INDIVIDUAL",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":         "STATIC",
+                "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
+                "folderSource":           "DYNAMIC_SQL",
+                "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
+            }
+        },
+        { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
+    ]';
+GO
+
+-- 5.5  All resolvers DYNAMIC_SQL -- email + displayname + filename + folder
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Resolvers',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-05 All Resolvers DYNAMIC_SQL',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
+    @DayOfMonth      = 1,
+    @DispatchJson = N'{
+        "deliveryMethod":      "BOTH",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "bulk-all@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "All Resolvers Test - {{PREV_MONTH_END}}",
+        "bodySource":          "STATIC",
+        "bodySourceValue":     "Report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.",
+        "folderSource":        "STATIC",
+        "folderSourceValue":   "\\\\server\\reports\\combined"
+    }',
+    @ParametersJson = N'[
+        {
+            "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
+            "value": "E001|E002|E003",
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "BOTH",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName   FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":         "STATIC",
+                "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
+                "folderSource":           "DYNAMIC_SQL",
+                "folderSourceValue":      "SELECT FolderPath   FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
+            }
+        },
+        { "name": "ReportDate",   "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}"   },
+        { "name": "StartDate",    "type": "string", "required": true, "sortOrder": 3, "value": "{{PREV_MONTH_START}}" },
+        { "name": "EntityType",   "type": "string", "required": true, "sortOrder": 4, "value": "ENTITY"               },
+        { "name": "PaymentTerms", "type": "string", "required": true, "sortOrder": 5, "value": "0|1|2|3|4"            }
     ]',
-    @RecipientsJson  = N'[
-        {"name":"CC Recipient", "email":"cc@example.com",  "role":"CC"},
-        {"name":"BCC Audit",    "email":"bcc@example.com", "role":"BCC"}
+    @RecipientsJson = N'[
+        { "email": "cc@example.com",  "role": "CC",  "includeInFanOut": true  },
+        { "email": "bcc@example.com", "role": "BCC", "includeInFanOut": false }
     ]';
 GO
 
 -- 5.6  Multiple non-primary parameters with mixed types
---      Tests that string values like "0|1|2" never get date-resolved
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - Multi Param',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-RES-06 Multi Param Mixed Types',
-    @FrequencyType   = 'MONTHLY',
-    @RunTime         = '06:00',
+--      Tests that string values like "0|1|2" are never date-resolved.
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - Multi Param',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-RES-06 Multi Param Mixed Types',
+    @FrequencyType   = N'MONTHLY',
+    @RunTime         = N'06:00',
     @DayOfMonth      = 1,
-    @Subject         = 'Multi Param Test - {{PREV_MONTH_END}}',
-    @ParametersJson  = N'[
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "bulk-multi@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Multi Param Test - {{PREV_MONTH_END}}"
+    }',
+    @ParametersJson = N'[
         {
             "name": "EntityCode", "type": "string", "required": true, "sortOrder": 1,
             "value": "E001|E002|E003",
-            "dispatch": {
-                "isPrimary": true, "mode": "BOTH", "deliveryMethod": "EMAIL",
-                "emailSource":      "LOOKUP_VIEW",
-                "emailSourceValue": "schdl.vw_TestEmail",
-                "bulkEmail":        "bulk-multi@example.com",
-                "displayNameSource":      "LOOKUP_VIEW",
-                "displayNameSourceValue": "schdl.vw_TestDisplayName",
-                "fileNameTemplate":       "MultiParam_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx"
+            "fanOut": {
+                "isPrimary":              true,
+                "mode":                   "BOTH",
+                "emailSource":            "DYNAMIC_SQL",
+                "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSource":      "DYNAMIC_SQL",
+                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "fileNameSource":         "STATIC",
+                "fileNameSourceValue":    "MultiParam_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx"
             }
         },
-        { "name": "DateFrom",    "type": "date",   "required": true,  "sortOrder": 2, "value": "{{PREV_MONTH_START}}" },
-        { "name": "DateTo",      "type": "date",   "required": true,  "sortOrder": 3, "value": "{{PREV_MONTH_END}}" },
-        { "name": "PaymentTerm", "type": "string", "required": true,  "sortOrder": 4, "value": "0|1|2|3|4" },
-        { "name": "ProductID",   "type": "string", "required": true,  "sortOrder": 5, "value": "17110|16970" },
-        { "name": "Year",        "type": "date",   "required": true,  "sortOrder": 6, "value": "{{YEAR}}" },
-        { "name": "IsActive",    "type": "string", "required": false, "sortOrder": 7, "value": "1" }
+        { "name": "DateFrom",    "type": "string", "required": true,  "sortOrder": 2, "value": "{{PREV_MONTH_START}}" },
+        { "name": "DateTo",      "type": "string", "required": true,  "sortOrder": 3, "value": "{{PREV_MONTH_END}}"   },
+        { "name": "PaymentTerm", "type": "string", "required": true,  "sortOrder": 4, "value": "0|1|2|3|4"            },
+        { "name": "ProductID",   "type": "string", "required": true,  "sortOrder": 5, "value": "17110|16970"          },
+        { "name": "Year",        "type": "string", "required": true,  "sortOrder": 6, "value": "{{YEAR}}"             },
+        { "name": "IsActive",    "type": "string", "required": false, "sortOrder": 7, "value": "1"                    }
     ]',
-    @RecipientsJson  = N'[{"name":"Test CC","email":"testcc@example.com","role":"CC"}]';
+    @RecipientsJson = N'[{ "email": "testcc@example.com", "role": "CC", "includeInFanOut": false }]';
 GO
 
 
 -- ============================================================
 --  SECTION 6  PARAMETER-FREE TESTS
 --  Reports that execute with no parameters at all.
+--  TO address is always in @DispatchJson.emailSourceValue.
+--  @RecipientsJson accepts CC and BCC only -- no TO role.
 -- ============================================================
 
--- 6.1  No parameters, EMAIL delivery, static recipient
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - No Params',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-NOPARAM-01 No Params Email',
-    @FrequencyType   = 'DAILY',
-    @RunTime         = '07:00',
-    @Subject         = 'No Param Report - {{TODAY}}',
-    @BodyTemplate    = 'Attached is the no-parameter report for {{TODAY}}.',
-    @ParametersJson  = NULL,
-    @RecipientsJson  = N'[
-        {"name":"No Param TO",  "email":"noparam-to@example.com",  "role":"TO"},
-        {"name":"No Param CC",  "email":"noparam-cc@example.com",  "role":"CC"},
-        {"name":"No Param BCC", "email":"noparam-bcc@example.com", "role":"BCC"}
+-- 6.1  No parameters, EMAIL, CC + BCC recipients
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - No Params',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-NOPARAM-01 No Params Email',
+    @FrequencyType   = N'DAILY',
+    @RunTime         = N'07:00',
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "noparam-to@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "No Param Report - {{TODAY}}",
+        "bodySource":          "STATIC",
+        "bodySourceValue":     "Attached is the no-parameter report for {{TODAY}}."
+    }',
+    @ParametersJson = NULL,
+    @RecipientsJson = N'[
+        { "email": "noparam-cc@example.com",  "role": "CC",  "includeInFanOut": false },
+        { "email": "noparam-bcc@example.com", "role": "BCC", "includeInFanOut": false }
     ]';
 GO
 
--- 6.2  No parameters, weekly, multiple TO recipients
-EXEC schdl.usp_RegisterSchedule
-    @DocumentName    = 'Test Report - No Params Weekly',
-    @ReportEndpoint  = '/api/reports/generate',
-    @ScheduleName    = 'TEST-NOPARAM-02 No Params Weekly Multiple TO',
-    @FrequencyType   = 'WEEKLY',
-    @RunTime         = '08:00',
+-- 6.2  No parameters, weekly, multiple TO (comma-separated in emailSourceValue)
+EXEC [schdl].[usp_RegisterSchedule]
+    @DocumentName    = N'Test Report - No Params Weekly',
+    @ReportEndpoint  = N'/api/reports/generate',
+    @ScheduleName    = N'TEST-NOPARAM-02 No Params Weekly Multiple TO',
+    @FrequencyType   = N'WEEKLY',
+    @RunTime         = N'08:00',
     @DayOfWeek       = 1,
-    @Subject         = 'Weekly No Param - {{PREV_WEEK_START}} to {{PREV_WEEK_END}}',
-    @ParametersJson  = NULL,
-    @RecipientsJson  = N'[
-        {"name":"Recipient One", "email":"rec1@example.com", "role":"TO"},
-        {"name":"Recipient Two", "email":"rec2@example.com", "role":"TO"},
-        {"name":"Recipient Three","email":"rec3@example.com","role":"TO"}
-    ]';
+    @DispatchJson = N'{
+        "deliveryMethod":      "EMAIL",
+        "emailSource":         "STATIC",
+        "emailSourceValue":    "rec1@example.com,rec2@example.com,rec3@example.com",
+        "subjectSource":       "STATIC",
+        "subjectSourceValue":  "Weekly No Param - {{PREV_WEEK_START}} to {{PREV_WEEK_END}}"
+    }',
+    @ParametersJson = NULL;
 GO
 
 
 -- ============================================================
 --  SECTION 7  TEST EXECUTION COMMANDS
---  Run these to verify all schedules produce correct output.
---  usp_TestDispatch bypasses all timing gates.
 -- ============================================================
 
 -- ── Quick test: verify a single schedule ─────────────────────
--- EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DISP-03 BOTH Mode';
+-- EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DISP-03 BOTH Mode';
 
--- ── Expected output checks after running usp_TestDispatch ────
--- TEST-DISP-01 COMBINED Mode        → 1 row,  DispatchType=BULK,       ToAddresses='bulk-recipient@example.com'
--- TEST-DISP-02 INDIVIDUAL Mode  → 3 rows, DispatchType=INDIVIDUAL, ToAddresses resolved per entity
--- TEST-DISP-03 BOTH Mode        → 4 rows (3 INDIVIDUAL + 1 BULK)
--- TEST-DELIV-02 FOLDER Delivery → 3 rows, FolderPath populated,    ToAddresses=''
--- TEST-DELIV-03 BOTH Delivery   → 4 rows, FolderPath + ToAddresses both populated
--- TEST-RES-03 FileNameTemplate  → FileName = 'Report_Entity One_2026-05-01_2026-05-31.xlsx' etc
--- TEST-RES-05 All Resolvers     → 4 rows, all columns populated:   DisplayName, FileName, ToAddresses, FolderPath
--- TEST-RES-06 Multi Param       → PaymentTerm values must be "0","1","2","3","4" NOT dates
--- TEST-NOPARAM-01               → 1 row,  parameters:[] in RequestJson
--- TEST-FREQ-05 Adhoc            → fires once, then IsActive=0
+-- ── Expected output after running usp_TestDispatch ───────────
+-- TEST-DISP-01 COMBINED Mode          → 1 row,  DispatchType=COMBINED, ToAddresses='combined-recipient@example.com'
+-- TEST-DISP-02 INDIVIDUAL Mode        → 3 rows, DispatchType=INDIVIDUAL, ToAddresses resolved per entity
+-- TEST-DISP-03 BOTH Mode              → 4 rows (3 INDIVIDUAL + 1 COMBINED)
+-- TEST-DELIV-02 FOLDER Delivery       → 3 rows, FolderPath populated, ToAddresses=NULL
+-- TEST-DELIV-03 BOTH Delivery         → 4 rows, FolderPath + ToAddresses both populated
+-- TEST-RES-03 FileName Static Tokens  → FileName = 'Report_Entity One_<prev_month_start>_<prev_month_end>.xlsx'
+-- TEST-RES-05 All Resolvers           → 4 rows, all resolver columns populated
+-- TEST-RES-06 Multi Param             → PaymentTerm values = "0","1","2","3","4" (not date-resolved)
+-- TEST-NOPARAM-01                     → 1 row, parameters:[] in RequestJson
+-- TEST-FREQ-05 Adhoc                  → fires once, then IsActive=0
 
--- ── Run all test schedules in one batch ──────────────────────
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-01 Daily at 07:00';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-02 Weekly Monday 08:00';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-03 Monthly 1st at 06:00';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-04 Monthly Last Day 23:00';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-05 Adhoc One Shot';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-FREQ-06 Interval 60min 07:00-19:00';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DISP-01 COMBINED Mode';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DISP-02 INDIVIDUAL Mode';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DISP-03 BOTH Mode';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DELIV-01 EMAIL Delivery';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DELIV-02 FOLDER Delivery';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-DELIV-03 BOTH Delivery';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-ESRC-01 STATIC Email';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-ESRC-02 LOOKUP_VIEW Email';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-ESRC-03 SCALAR_FN Email';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-ESRC-04 DYNAMIC_SQL Email';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-01 DisplayName LOOKUP_VIEW';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-02 FileName SCALAR_FN';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-03 FileNameTemplate';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-04 FolderPath DYNAMIC_SQL';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-05 All Resolvers Combined View';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-RES-06 Multi Param Mixed Types';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-NOPARAM-01 No Params Email';
-EXEC schdl.usp_TestDispatch @ScheduleName = 'TEST-NOPARAM-02 No Params Weekly Multiple TO';
+-- ── Run all test schedules ────────────────────────────────────
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-01 Daily at 07:00';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-02 Weekly Monday 08:00';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-03 Monthly 1st at 06:00';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-04 Monthly Last Day 23:00';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-05 Adhoc One Shot';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-FREQ-06 Interval 60min 07:00-19:00';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DISP-01 COMBINED Mode';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DISP-02 INDIVIDUAL Mode';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DISP-03 BOTH Mode';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DELIV-01 EMAIL Delivery';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DELIV-02 FOLDER Delivery';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-DELIV-03 BOTH Delivery';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-ESRC-01 STATIC Email';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-ESRC-02 DYNAMIC_SQL Email INDIVIDUAL';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-ESRC-03 DYNAMIC_SQL Email COMBINED';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-01 DisplayName DYNAMIC_SQL';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-02 FileName DYNAMIC_SQL';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-03 FileName Static with Tokens';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-04 FolderPath DYNAMIC_SQL';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-05 All Resolvers DYNAMIC_SQL';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-RES-06 Multi Param Mixed Types';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-NOPARAM-01 No Params Email';
+EXEC [schdl].[usp_TestDispatch] @ScheduleName = N'TEST-NOPARAM-02 No Params Weekly Multiple TO';
 
 
 -- ── Verify gate logic with usp_GetDueSchedules ───────────────
--- Pass a timestamp that matches a specific schedule to verify
--- the gate diagnostic returns all Y for that schedule.
-
 -- Should fire TEST-FREQ-01 (Daily at 07:00):
-EXEC schdl.usp_GetDueSchedules @AsOf = '2026-06-09 07:00:00';
+EXEC [schdl].[usp_GetDueSchedules] @AsOf = '2026-06-09 07:00:00';
 
--- Should fire TEST-FREQ-02 (Weekly Monday 08:00) — find a Monday:
-EXEC schdl.usp_GetDueSchedules @AsOf = '2026-06-09 08:00:00';
+-- Should fire TEST-FREQ-02 (Weekly Monday 08:00) -- 2026-06-08 is a Monday:
+EXEC [schdl].[usp_GetDueSchedules] @AsOf = '2026-06-08 08:00:00';
 
 -- Should fire TEST-FREQ-03 (Monthly 1st at 06:00):
-EXEC schdl.usp_GetDueSchedules @AsOf = '2026-07-01 06:00:00';
+EXEC [schdl].[usp_GetDueSchedules] @AsOf = '2026-07-01 06:00:00';
 
--- Should fire TEST-FREQ-04 (Monthly Last Day 23:00) — June 30:
-EXEC schdl.usp_GetDueSchedules @AsOf = '2026-06-30 23:00:00';
+-- Should fire TEST-FREQ-04 (Monthly Last Day 23:00) -- June 30:
+EXEC [schdl].[usp_GetDueSchedules] @AsOf = '2026-06-30 23:00:00';
 
 -- Should fire TEST-FREQ-06 (Interval 60min 07:00-19:00):
-EXEC schdl.usp_GetDueSchedules @AsOf = '2026-06-09 09:00:00';
+EXEC [schdl].[usp_GetDueSchedules] @AsOf = '2026-06-09 09:00:00';
 
 
--- ── Inspect results kept in DispatchQueue ────────────────────
--- Run with @KeepResults=1 then query for specific checks:
-
-EXEC schdl.usp_TestDispatch
-    @ScheduleName = 'TEST-RES-05 All Resolvers Combined View',
+-- ── Inspect kept results ──────────────────────────────────────
+EXEC [schdl].[usp_TestDispatch]
+    @ScheduleName = N'TEST-RES-05 All Resolvers DYNAMIC_SQL',
     @KeepResults  = 1;
 
 SELECT
     QueueID, DispatchType, DeliveryMethod, DispatchKeyValue,
     DisplayName, FileName, ToAddresses, FolderPath,
     LEFT(RequestJson, 300) AS RequestJsonPreview
-FROM schdl.DispatchQueue
+FROM [schdl].[DispatchQueue]
 WHERE Status = 'PENDING'
 ORDER BY DispatchType DESC, DispatchKeyValue;
 
--- Clean up after inspection
--- DELETE FROM schdl.DispatchQueue WHERE Status = ''PENDING'';
--- DELETE FROM schdl.ExecutionLog  WHERE Status = ''PENDING'';
+-- Clean up after inspection:
+-- DELETE FROM [schdl].[DispatchQueue] WHERE Status = 'PENDING';
+-- DELETE FROM [schdl].[ExecutionLog]  WHERE Status = 'PENDING';
 
--- ── Verify date token resolution on every token ───────────────
+
+-- ── Verify date token resolution ─────────────────────────────
 SELECT
     TokenID, Token, Category, Description,
-    schdl.fn_ResolveDateToken(Token, CAST('2026-06-09' AS DATE)) AS ResolvedFor_20260609,
-    schdl.fn_ResolveDateToken(Token, CAST('2026-07-01' AS DATE)) AS ResolvedFor_20260701,
-    schdl.fn_ResolveDateToken(Token, CAST('2026-12-31' AS DATE)) AS ResolvedFor_20261231
-FROM schdl.DateToken
+    [schdl].[fn_ResolveDateToken](Token, CAST('2026-06-09' AS DATE)) AS ResolvedFor_20260609,
+    [schdl].[fn_ResolveDateToken](Token, CAST('2026-07-01' AS DATE)) AS ResolvedFor_20260701,
+    [schdl].[fn_ResolveDateToken](Token, CAST('2026-12-31' AS DATE)) AS ResolvedFor_20261231
+FROM [schdl].[DateToken]
 WHERE IsActive = 1
 ORDER BY Category, TokenID;
 
--- ── Verify fn_FetchDocumentId for each registered document ───
+
+-- ── Verify fn_FetchDocumentId for each registered schedule ───
 SELECT
-    DocumentName,
-    schdl.fn_FetchDocumentId(DocumentName) AS ResolvedDocumentId,
-    CASE WHEN schdl.fn_FetchDocumentId(DocumentName) IS NULL
-         THEN ''WARNING: NULL - check fn_FetchDocumentId body''
-         ELSE ''OK'' END AS Status
-FROM schdl.Document
-ORDER BY DocumentName;
+    s.ScheduleName,
+    d.DocumentName,
+    [schdl].[fn_FetchDocumentId](s.ScheduleID) AS ResolvedDocumentId,
+    CASE
+        WHEN [schdl].[fn_FetchDocumentId](s.ScheduleID) IS NULL
+        THEN 'WARNING: NULL - check fn_FetchDocumentId body'
+        ELSE 'OK'
+    END AS Status
+FROM [schdl].[Schedule]         s
+JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = s.ScheduleID
+ORDER BY s.ScheduleName;
