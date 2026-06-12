@@ -25,6 +25,7 @@ GO
 IF OBJECT_ID('[schdl].[fn_FetchDocumentId]',    'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_FetchDocumentId];
 IF OBJECT_ID('[schdl].[fn_ResolveAllTokens]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveAllTokens];
 IF OBJECT_ID('[schdl].[fn_ResolveDateToken]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveDateToken];
+IF OBJECT_ID('[schdl].[fn_CalcNextRunAt]',      'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_CalcNextRunAt];
 GO
 
 -- Tables (children before parents; handles both old and new schema names)
@@ -612,6 +613,80 @@ BEGIN
 END;
 GO
 
+-- 2.4  fn_CalcNextRunAt
+--  NextRunAt Fix — fn_CalcNextRunAt + patches to
+--  usp_RegisterSchedule and usp_GetDueSchedules
+--
+--  KEY RULES:
+--    NextRunAt stores a flat DATE for DAILY/WEEKLY/MONTHLY
+--    NextRunAt stores a DATETIME2 for INTERVAL (time-aware)
+--    RunTime column stores the time of day separately
+--
+--    usp_GetDueSchedules fires when:
+--      CAST(NextRunAt AS DATE) <= @Today
+--      AND CAST(RunTime AS TIME) <= @NowTime
+-- ============================================================
+
+
+-- ── 1. Shared helper: fn_CalcNextRunAt ───────────────────────────────────
+CREATE OR ALTER FUNCTION [schdl].[fn_CalcNextRunAt]
+(
+    @FrequencyType   NVARCHAR(20),
+    @DayOfWeek       TINYINT,      -- 0=Sun..6=Sat  (NULL if not WEEKLY)
+    @DayOfMonth      SMALLINT,     -- 1-31 | -1=last (NULL if not MONTHLY)
+    @IntervalMinutes INT,          -- NULL if not INTERVAL
+    @AsOf            DATETIME2     -- reference point (GETDATE())
+)
+RETURNS DATETIME2
+AS
+BEGIN
+    DECLARE @Today  DATE = CAST(@AsOf AS DATE);
+    DECLARE @Result DATETIME2;
+
+    IF @FrequencyType = 'DAILY'
+        -- Next calendar day, flat date
+        SET @Result = CAST(DATEADD(DAY, 1, @Today) AS DATETIME2);
+
+    ELSE IF @FrequencyType = 'WEEKLY'
+    BEGIN
+        -- Next occurrence of target weekday (0=Sun..6=Sat)
+        -- DATEPART(WEEKDAY) = 1(Sun)..7(Sat), convert to 0-based
+        DECLARE @TodayDOW  TINYINT = DATEPART(WEEKDAY, @Today) - 1;
+        DECLARE @DaysAhead INT     = (@DayOfWeek - @TodayDOW + 7) % 7;
+        IF @DaysAhead = 0 SET @DaysAhead = 7;  -- same weekday = next week
+        SET @Result = CAST(DATEADD(DAY, @DaysAhead, @Today) AS DATETIME2);
+    END
+
+    ELSE IF @FrequencyType = 'MONTHLY'
+    BEGIN
+        -- 1st of next month as anchor
+        DECLARE @FirstOfNextMonth DATE =
+            CAST(DATEADD(MONTH, DATEDIFF(MONTH, 0, @Today) + 1, 0) AS DATE);
+
+        IF @DayOfMonth = -1
+            -- Last day of next month
+            SET @Result = CAST(EOMONTH(@FirstOfNextMonth) AS DATETIME2);
+        ELSE
+        BEGIN
+            -- Target day of next month — clamp to last day if month is shorter
+            DECLARE @Target DATE = DATEADD(DAY, @DayOfMonth - 1, @FirstOfNextMonth);
+            IF MONTH(@Target) <> MONTH(@FirstOfNextMonth)
+                SET @Target = EOMONTH(@FirstOfNextMonth);
+            SET @Result = CAST(@Target AS DATETIME2);
+        END
+    END
+
+    ELSE IF @FrequencyType = 'INTERVAL'
+        -- Time-aware: add interval from reference point
+        SET @Result = DATEADD(MINUTE, ISNULL(@IntervalMinutes, 0), @AsOf);
+
+    ELSE
+        SET @Result = NULL;  -- ADHOC or unknown
+
+    RETURN @Result;
+END;
+GO
+
 
 -- ============================================================
 --  SECTION 3  SETUP PROC  --  usp_RegisterSchedule
@@ -742,73 +817,94 @@ BEGIN
     -- 2. UPSERT Schedule
     DECLARE @ScheduleID INT;
 
-    IF EXISTS (SELECT 1 FROM [schdl].[Schedule] WHERE ScheduleName=@ScheduleName)
+    IF EXISTS (SELECT 1 FROM [schdl].[Schedule] WHERE ScheduleName = @ScheduleName)
         UPDATE [schdl].[Schedule]
-        SET    FrequencyType=@FrequencyType,RunTime=@RunTime,
-               DayOfWeek=@DayOfWeek,DayOfMonth=@DayOfMonth,IntervalMinutes=@IntervalMinutes,
-               WindowStart=@WindowStart,WindowEnd=@WindowEnd,StartDate=@StartDate,
-               EndDate=@EndDate,
-               DeliveryMethod=@sDeliveryMethod,
-               EmailSource=@sEmailSource,EmailSourceValue=@sEmailSourceValue,
-               SubjectSource=@sSubjectSource,SubjectSourceValue=@sSubjectSourceValue,
-               BodySource=@sBodySource,BodySourceValue=@sBodySourceValue,
-               FileNameSource=@sFileNameSource,FileNameSourceValue=@sFileNameSourceValue,
-               FolderSource=@sFolderSource,FolderSourceValue=@sFolderSourceValue,
-               NextRunAt=NULL,
-               ModifiedAt=GETDATE()
-        WHERE  ScheduleName=@ScheduleName;
+        SET    FrequencyType     = @FrequencyType,
+               RunTime           = @RunTime,
+               DayOfWeek         = @DayOfWeek,
+               DayOfMonth        = @DayOfMonth,
+               IntervalMinutes   = @IntervalMinutes,
+               WindowStart       = @WindowStart,
+               WindowEnd         = @WindowEnd,
+               StartDate         = @StartDate,
+               EndDate           = @EndDate,
+               DeliveryMethod    = @sDeliveryMethod,
+               EmailSource       = @sEmailSource,
+               EmailSourceValue  = @sEmailSourceValue,
+               SubjectSource     = @sSubjectSource,
+               SubjectSourceValue= @sSubjectSourceValue,
+               BodySource        = @sBodySource,
+               BodySourceValue   = @sBodySourceValue,
+               FileNameSource    = @sFileNameSource,
+               FileNameSourceValue = @sFileNameSourceValue,
+               FolderSource      = @sFolderSource,
+               FolderSourceValue = @sFolderSourceValue,
+               -- Recalculate NextRunAt when frequency definition changes
+               NextRunAt         = [schdl].[fn_CalcNextRunAt](
+                                       @FrequencyType, @DayOfWeek, @DayOfMonth,
+                                       @IntervalMinutes, GETDATE()),
+               ModifiedAt        = GETDATE()
+        WHERE  ScheduleName = @ScheduleName;
     ELSE
         INSERT INTO [schdl].[Schedule]
-            (ScheduleName,FrequencyType,RunTime,DayOfWeek,DayOfMonth,
-             IntervalMinutes,WindowStart,WindowEnd,StartDate,EndDate,
-             DeliveryMethod,EmailSource,EmailSourceValue,
-             SubjectSource,SubjectSourceValue,
-             BodySource,BodySourceValue,
-             FileNameSource,FileNameSourceValue,
-             FolderSource,FolderSourceValue)
+            (ScheduleName, FrequencyType, RunTime, DayOfWeek, DayOfMonth,
+             IntervalMinutes, WindowStart, WindowEnd, StartDate, EndDate,
+             DeliveryMethod, EmailSource, EmailSourceValue,
+             SubjectSource, SubjectSourceValue,
+             BodySource, BodySourceValue,
+             FileNameSource, FileNameSourceValue,
+             FolderSource, FolderSourceValue,
+             NextRunAt)
         VALUES
-            (@ScheduleName,@FrequencyType,@RunTime,@DayOfWeek,@DayOfMonth,
-             @IntervalMinutes,@WindowStart,@WindowEnd,@StartDate,@EndDate,
-             @sDeliveryMethod,@sEmailSource,@sEmailSourceValue,
-             @sSubjectSource,@sSubjectSourceValue,
-             @sBodySource,@sBodySourceValue,
-             @sFileNameSource,@sFileNameSourceValue,
-             @sFolderSource,@sFolderSourceValue);
+            (@ScheduleName, @FrequencyType, @RunTime, @DayOfWeek, @DayOfMonth,
+             @IntervalMinutes, @WindowStart, @WindowEnd, @StartDate, @EndDate,
+             @sDeliveryMethod, @sEmailSource, @sEmailSourceValue,
+             @sSubjectSource, @sSubjectSourceValue,
+             @sBodySource, @sBodySourceValue,
+             @sFileNameSource, @sFileNameSourceValue,
+             @sFolderSource, @sFolderSourceValue,
+             [schdl].[fn_CalcNextRunAt](
+                 @FrequencyType, @DayOfWeek, @DayOfMonth,
+                 @IntervalMinutes, GETDATE()));
 
-    SELECT @ScheduleID=ScheduleID FROM [schdl].[Schedule] WHERE ScheduleName=@ScheduleName;
+    SELECT @ScheduleID = ScheduleID FROM [schdl].[Schedule] WHERE ScheduleName = @ScheduleName;
 
     -- 3. UPSERT ScheduleDocument
     DECLARE @DocID INT;
 
-    IF EXISTS (SELECT 1 FROM [schdl].[ScheduleDocument] WHERE ScheduleID=@ScheduleID)
+    IF EXISTS (SELECT 1 FROM [schdl].[ScheduleDocument] WHERE ScheduleID = @ScheduleID)
         UPDATE [schdl].[ScheduleDocument]
-        SET    DocumentName=@DocumentName,ReportEndpoint=@ReportEndpoint,
-               DefaultOutputFormat=@OutputFormat,DefaultLanguage=@Language,
-               DefaultConfidentiality=@Confidentiality,
-               ModifiedAt=GETDATE()
-        WHERE  ScheduleID=@ScheduleID;
+        SET    DocumentName          = @DocumentName,
+               ReportEndpoint        = @ReportEndpoint,
+               DefaultOutputFormat   = @OutputFormat,
+               DefaultLanguage       = @Language,
+               DefaultConfidentiality= @Confidentiality,
+               ModifiedAt            = GETDATE()
+        WHERE  ScheduleID = @ScheduleID;
     ELSE
         INSERT INTO [schdl].[ScheduleDocument]
-            (ScheduleID,DocumentName,ReportEndpoint,DefaultOutputFormat,DefaultLanguage,DefaultConfidentiality)
-        VALUES (@ScheduleID,@DocumentName,@ReportEndpoint,@OutputFormat,@Language,@Confidentiality);
+            (ScheduleID, DocumentName, ReportEndpoint,
+             DefaultOutputFormat, DefaultLanguage, DefaultConfidentiality)
+        VALUES
+            (@ScheduleID, @DocumentName, @ReportEndpoint,
+             @OutputFormat, @Language, @Confidentiality);
 
-    SELECT @DocID=ScheduleDocumentID FROM [schdl].[ScheduleDocument] WHERE ScheduleID=@ScheduleID;
+    SELECT @DocID = ScheduleDocumentID
+    FROM   [schdl].[ScheduleDocument]
+    WHERE  ScheduleID = @ScheduleID;
 
     -- 4. Loop: UPSERT parameters + dispatch config + parameter values
     DECLARE
         @pName NVARCHAR(100), @pType NVARCHAR(50), @pRequired BIT,
         @pSort INT, @pDefault NVARCHAR(500), @pValue NVARCHAR(MAX),
-        @pJson NVARCHAR(MAX),
-        @pValueQuery NVARCHAR(MAX),
-        @pVQ2 NVARCHAR(MAX),
-        @pHasDispatch BIT,          @pIsPrimary BIT,
-        @pMode NVARCHAR(12),
-        @pEmailSrc NVARCHAR(20),    @pEmailSrcVal NVARCHAR(MAX),
-        @pDisplayNameSrc NVARCHAR(20),    @pDisplayNameSrcVal NVARCHAR(MAX),
-        @pFileNameSrc NVARCHAR(20),       @pFileNameSrcVal NVARCHAR(MAX),
-        @pFolderSrc NVARCHAR(20),         @pFolderSrcVal NVARCHAR(MAX),
-        @pSubjectSrc NVARCHAR(20),        @pSubjectSrcVal NVARCHAR(MAX),
-        @pBodySrc NVARCHAR(20),           @pBodySrcVal NVARCHAR(MAX),
+        @pJson NVARCHAR(MAX), @pValueQuery NVARCHAR(MAX), @pVQ2 NVARCHAR(MAX),
+        @pHasDispatch BIT, @pIsPrimary BIT, @pMode NVARCHAR(12),
+        @pEmailSrc NVARCHAR(20),     @pEmailSrcVal NVARCHAR(MAX),
+        @pDisplayNameSrc NVARCHAR(20), @pDisplayNameSrcVal NVARCHAR(MAX),
+        @pFileNameSrc NVARCHAR(20),  @pFileNameSrcVal NVARCHAR(MAX),
+        @pFolderSrc NVARCHAR(20),    @pFolderSrcVal NVARCHAR(MAX),
+        @pSubjectSrc NVARCHAR(20),   @pSubjectSrcVal NVARCHAR(MAX),
+        @pBodySrc NVARCHAR(20),      @pBodySrcVal NVARCHAR(MAX),
         @pParamID INT,
         @pIndex INT = 0, @pCount INT;
 
@@ -816,146 +912,144 @@ BEGIN
 
     WHILE @pIndex < @pCount
     BEGIN
-        SET @pJson = JSON_QUERY(@ParametersJson,'$['+CAST(@pIndex AS NVARCHAR)+']');
+        SET @pJson        = JSON_QUERY(@ParametersJson, '$[' + CAST(@pIndex AS NVARCHAR) + ']');
+        SET @pName        = JSON_VALUE(@pJson, '$.name');
+        SET @pType        = ISNULL(JSON_VALUE(@pJson, '$.type'), 'string');
+        SET @pRequired    = ISNULL(TRY_CAST(JSON_VALUE(@pJson, '$.required')  AS BIT), 1);
+        SET @pSort        = ISNULL(TRY_CAST(JSON_VALUE(@pJson, '$.sortOrder') AS INT), @pIndex + 1);
+        SET @pDefault     = JSON_VALUE(@pJson, '$.defaultValue');
+        SET @pValue       = JSON_VALUE(@pJson, '$.value');
+        SET @pValueQuery  = JSON_VALUE(@pJson, '$.valueQuery');
 
-        SET @pName        = JSON_VALUE(@pJson,'$.name');
-        SET @pType        = ISNULL(JSON_VALUE(@pJson,'$.type'),'string');
-        SET @pRequired    = ISNULL(TRY_CAST(JSON_VALUE(@pJson,'$.required') AS BIT),1);
-        SET @pSort        = ISNULL(TRY_CAST(JSON_VALUE(@pJson,'$.sortOrder') AS INT),@pIndex+1);
-        SET @pDefault     = JSON_VALUE(@pJson,'$.defaultValue');
-        SET @pValue       = JSON_VALUE(@pJson,'$.value');
-        SET @pValueQuery  = JSON_VALUE(@pJson,'$.valueQuery');
-
-        SET @pHasDispatch        = CASE WHEN JSON_QUERY(@pJson,'$.fanOut') IS NOT NULL THEN 1 ELSE 0 END;
-        SET @pIsPrimary          = ISNULL(TRY_CAST(JSON_VALUE(@pJson,'$.fanOut.isPrimary') AS BIT),0);
-        SET @pMode               = ISNULL(JSON_VALUE(@pJson,'$.fanOut.mode'),'INDIVIDUAL');
-        SET @pEmailSrc           = ISNULL(JSON_VALUE(@pJson,'$.fanOut.emailSource'),'STATIC');
-        SET @pEmailSrcVal        = JSON_VALUE(@pJson,'$.fanOut.emailSourceValue');
-        SET @pDisplayNameSrc     = JSON_VALUE(@pJson,'$.fanOut.displayNameSource');
-        SET @pDisplayNameSrcVal  = JSON_VALUE(@pJson,'$.fanOut.displayNameSourceValue');
-        SET @pFileNameSrc        = JSON_VALUE(@pJson,'$.fanOut.fileNameSource');
-        SET @pFileNameSrcVal     = JSON_VALUE(@pJson,'$.fanOut.fileNameSourceValue');
-        -- Backward compat: fileNameTemplate maps to STATIC fileNameSource
-        IF @pFileNameSrc IS NULL AND JSON_VALUE(@pJson,'$.fanOut.fileNameTemplate') IS NOT NULL
+        SET @pHasDispatch       = CASE WHEN JSON_QUERY(@pJson, '$.fanOut') IS NOT NULL THEN 1 ELSE 0 END;
+        SET @pIsPrimary         = ISNULL(TRY_CAST(JSON_VALUE(@pJson, '$.fanOut.isPrimary') AS BIT), 0);
+        SET @pMode              = ISNULL(JSON_VALUE(@pJson, '$.fanOut.mode'), 'INDIVIDUAL');
+        SET @pEmailSrc          = ISNULL(JSON_VALUE(@pJson, '$.fanOut.emailSource'), 'STATIC');
+        SET @pEmailSrcVal       = JSON_VALUE(@pJson, '$.fanOut.emailSourceValue');
+        SET @pDisplayNameSrc    = JSON_VALUE(@pJson, '$.fanOut.displayNameSource');
+        SET @pDisplayNameSrcVal = JSON_VALUE(@pJson, '$.fanOut.displayNameSourceValue');
+        SET @pFileNameSrc       = JSON_VALUE(@pJson, '$.fanOut.fileNameSource');
+        SET @pFileNameSrcVal    = JSON_VALUE(@pJson, '$.fanOut.fileNameSourceValue');
+        -- Backward compat
+        IF @pFileNameSrc IS NULL AND JSON_VALUE(@pJson, '$.fanOut.fileNameTemplate') IS NOT NULL
         BEGIN
             SET @pFileNameSrc    = 'STATIC';
-            SET @pFileNameSrcVal = JSON_VALUE(@pJson,'$.fanOut.fileNameTemplate');
+            SET @pFileNameSrcVal = JSON_VALUE(@pJson, '$.fanOut.fileNameTemplate');
         END;
-        SET @pFolderSrc          = JSON_VALUE(@pJson,'$.fanOut.folderSource');
-        SET @pFolderSrcVal       = JSON_VALUE(@pJson,'$.fanOut.folderSourceValue');
-        SET @pSubjectSrc         = JSON_VALUE(@pJson,'$.fanOut.subjectSource');
-        SET @pSubjectSrcVal      = JSON_VALUE(@pJson,'$.fanOut.subjectSourceValue');
-        SET @pBodySrc            = JSON_VALUE(@pJson,'$.fanOut.bodySource');
-        SET @pBodySrcVal         = JSON_VALUE(@pJson,'$.fanOut.bodySourceValue');
+        SET @pFolderSrc         = JSON_VALUE(@pJson, '$.fanOut.folderSource');
+        SET @pFolderSrcVal      = JSON_VALUE(@pJson, '$.fanOut.folderSourceValue');
+        SET @pSubjectSrc        = JSON_VALUE(@pJson, '$.fanOut.subjectSource');
+        SET @pSubjectSrcVal     = JSON_VALUE(@pJson, '$.fanOut.subjectSourceValue');
+        SET @pBodySrc           = JSON_VALUE(@pJson, '$.fanOut.bodySource');
+        SET @pBodySrcVal        = JSON_VALUE(@pJson, '$.fanOut.bodySourceValue');
 
-        -- UPSERT ScheduleDocumentParameter
         IF EXISTS (SELECT 1 FROM [schdl].[ScheduleDocumentParameter]
-                   WHERE ScheduleID=@ScheduleID AND ParameterName=@pName)
+                   WHERE ScheduleID = @ScheduleID AND ParameterName = @pName)
             UPDATE [schdl].[ScheduleDocumentParameter]
-            SET    DataType=@pType,IsRequired=@pRequired,DefaultValue=@pDefault,SortOrder=@pSort
-            WHERE  ScheduleID=@ScheduleID AND ParameterName=@pName;
+            SET    DataType = @pType, IsRequired = @pRequired,
+                   DefaultValue = @pDefault, SortOrder = @pSort
+            WHERE  ScheduleID = @ScheduleID AND ParameterName = @pName;
         ELSE
             INSERT INTO [schdl].[ScheduleDocumentParameter]
-                (ScheduleDocumentID,ScheduleID,ParameterName,DataType,IsRequired,DefaultValue,SortOrder)
-            VALUES (@DocID,@ScheduleID,@pName,@pType,@pRequired,@pDefault,@pSort);
+                (ScheduleDocumentID, ScheduleID, ParameterName,
+                 DataType, IsRequired, DefaultValue, SortOrder)
+            VALUES
+                (@DocID, @ScheduleID, @pName,
+                 @pType, @pRequired, @pDefault, @pSort);
 
-        SELECT @pParamID=ScheduleParameterID FROM [schdl].[ScheduleDocumentParameter]
-        WHERE  ScheduleID=@ScheduleID AND ParameterName=@pName;
+        SELECT @pParamID = ScheduleParameterID
+        FROM   [schdl].[ScheduleDocumentParameter]
+        WHERE  ScheduleID = @ScheduleID AND ParameterName = @pName;
 
-        -- UPSERT/DELETE ScheduleParameterDispatchConfig
-        IF @pHasDispatch=0
+        IF @pHasDispatch = 0
             DELETE FROM [schdl].[ScheduleParameterDispatchConfig]
-            WHERE ScheduleParameterID=@pParamID AND ScheduleID=@ScheduleID;
+            WHERE  ScheduleParameterID = @pParamID AND ScheduleID = @ScheduleID;
 
-        IF @pHasDispatch=1
+        IF @pHasDispatch = 1
         BEGIN
             IF EXISTS (SELECT 1 FROM [schdl].[ScheduleParameterDispatchConfig]
-                       WHERE ScheduleParameterID=@pParamID AND ScheduleID=@ScheduleID)
+                       WHERE ScheduleParameterID = @pParamID AND ScheduleID = @ScheduleID)
                 UPDATE [schdl].[ScheduleParameterDispatchConfig]
-                SET    IsPrimaryDispatchKey  = @pIsPrimary,
-                       DispatchMode          = @pMode,
-                       EmailSource           = @pEmailSrc,
-                       EmailSourceValue      = @pEmailSrcVal,
-                       DisplayNameSource     = @pDisplayNameSrc,
-                       DisplayNameSourceValue= @pDisplayNameSrcVal,
-                       FileNameSource        = @pFileNameSrc,
-                       FileNameSourceValue   = @pFileNameSrcVal,
-                       FolderSource          = @pFolderSrc,
-                       FolderSourceValue     = @pFolderSrcVal,
-                       SubjectSource         = @pSubjectSrc,
-                       SubjectSourceValue    = @pSubjectSrcVal,
-                       BodySource            = @pBodySrc,
-                       BodySourceValue       = @pBodySrcVal
-                WHERE  ScheduleParameterID=@pParamID AND ScheduleID=@ScheduleID;
+                SET    IsPrimaryDispatchKey   = @pIsPrimary,
+                       DispatchMode           = @pMode,
+                       EmailSource            = @pEmailSrc,
+                       EmailSourceValue       = @pEmailSrcVal,
+                       DisplayNameSource      = @pDisplayNameSrc,
+                       DisplayNameSourceValue = @pDisplayNameSrcVal,
+                       FileNameSource         = @pFileNameSrc,
+                       FileNameSourceValue    = @pFileNameSrcVal,
+                       FolderSource           = @pFolderSrc,
+                       FolderSourceValue      = @pFolderSrcVal,
+                       SubjectSource          = @pSubjectSrc,
+                       SubjectSourceValue     = @pSubjectSrcVal,
+                       BodySource             = @pBodySrc,
+                       BodySourceValue        = @pBodySrcVal
+                WHERE  ScheduleParameterID = @pParamID AND ScheduleID = @ScheduleID;
             ELSE
                 INSERT INTO [schdl].[ScheduleParameterDispatchConfig]
-                    (ScheduleParameterID,ScheduleID,IsPrimaryDispatchKey,DispatchMode,
-                     EmailSource,EmailSourceValue,
-                     DisplayNameSource,DisplayNameSourceValue,
-                     FileNameSource,FileNameSourceValue,
-                     FolderSource,FolderSourceValue,
-                     SubjectSource,SubjectSourceValue,
-                     BodySource,BodySourceValue)
-                VALUES(@pParamID,@ScheduleID,@pIsPrimary,@pMode,
-                       @pEmailSrc,@pEmailSrcVal,
-                       @pDisplayNameSrc,@pDisplayNameSrcVal,
-                       @pFileNameSrc,@pFileNameSrcVal,
-                       @pFolderSrc,@pFolderSrcVal,
-                       @pSubjectSrc,@pSubjectSrcVal,
-                       @pBodySrc,@pBodySrcVal);
+                    (ScheduleParameterID, ScheduleID, IsPrimaryDispatchKey, DispatchMode,
+                     EmailSource, EmailSourceValue,
+                     DisplayNameSource, DisplayNameSourceValue,
+                     FileNameSource, FileNameSourceValue,
+                     FolderSource, FolderSourceValue,
+                     SubjectSource, SubjectSourceValue,
+                     BodySource, BodySourceValue)
+                VALUES
+                    (@pParamID, @ScheduleID, @pIsPrimary, @pMode,
+                     @pEmailSrc, @pEmailSrcVal,
+                     @pDisplayNameSrc, @pDisplayNameSrcVal,
+                     @pFileNameSrc, @pFileNameSrcVal,
+                     @pFolderSrc, @pFolderSrcVal,
+                     @pSubjectSrc, @pSubjectSrcVal,
+                     @pBodySrc, @pBodySrcVal);
         END;
 
-        -- UPSERT ScheduleParameter
         IF @pValue IS NOT NULL
         BEGIN
             SET @pVQ2 = JSON_VALUE(
-                JSON_QUERY(@ParametersJson,'$['+CAST(@pIndex AS NVARCHAR)+']'),
+                JSON_QUERY(@ParametersJson, '$[' + CAST(@pIndex AS NVARCHAR) + ']'),
                 '$.valueQuery');
 
             IF EXISTS (SELECT 1 FROM [schdl].[ScheduleParameter]
-                       WHERE ScheduleID=@ScheduleID AND ScheduleParameterID=@pParamID)
+                       WHERE ScheduleID = @ScheduleID AND ScheduleParameterID = @pParamID)
                 UPDATE [schdl].[ScheduleParameter]
                 SET    ParameterValue      = @pValue,
                        ParameterValueQuery = @pVQ2
-                WHERE  ScheduleID=@ScheduleID AND ScheduleParameterID=@pParamID;
+                WHERE  ScheduleID = @ScheduleID AND ScheduleParameterID = @pParamID;
             ELSE
                 INSERT INTO [schdl].[ScheduleParameter]
                     (ScheduleID, ScheduleParameterID, ParameterValue, ParameterValueQuery)
-                VALUES(@ScheduleID, @pParamID, @pValue, @pVQ2);
+                VALUES
+                    (@ScheduleID, @pParamID, @pValue, @pVQ2);
         END;
 
         SET @pIndex += 1;
     END;
 
-    -- 5. Standing Recipients (CC/BCC only) -- delete and re-insert
+    -- 5. Standing Recipients (CC/BCC only)
     DELETE FROM [schdl].[ScheduleStandingRecipient] WHERE ScheduleID = @ScheduleID;
 
     IF @RecipientsJson IS NOT NULL AND @RecipientsJson <> '[]'
     BEGIN
         DECLARE
-            @rEmail  NVARCHAR(320),
-            @rRole   NVARCHAR(5),
-            @rFanOut BIT,
-            @rIndex  INT = 0,
-            @rCount  INT;
+            @rEmail  NVARCHAR(320), @rRole NVARCHAR(5),
+            @rFanOut BIT, @rIndex INT = 0, @rCount INT;
 
         SELECT @rCount = COUNT(*) FROM OPENJSON(@RecipientsJson);
 
         WHILE @rIndex < @rCount
         BEGIN
-            SET @rEmail  = JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].email');
-            SET @rRole   = ISNULL(JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].role'), 'CC');
-            SET @rFanOut = ISNULL(
-                TRY_CAST(JSON_VALUE(@RecipientsJson, '$['+CAST(@rIndex AS NVARCHAR)+'].includeInFanOut') AS BIT),
-                0);
+            SET @rEmail  = JSON_VALUE(@RecipientsJson, '$[' + CAST(@rIndex AS NVARCHAR) + '].email');
+            SET @rRole   = ISNULL(JSON_VALUE(@RecipientsJson, '$[' + CAST(@rIndex AS NVARCHAR) + '].role'), 'CC');
+            SET @rFanOut = ISNULL(TRY_CAST(JSON_VALUE(@RecipientsJson, '$[' + CAST(@rIndex AS NVARCHAR) + '].includeInFanOut') AS BIT), 0);
 
-            IF @rEmail IS NOT NULL AND LTRIM(RTRIM(@rEmail)) <> '' AND @rRole IN ('CC','BCC')
+            IF @rEmail IS NOT NULL AND LTRIM(RTRIM(@rEmail)) <> '' AND @rRole IN ('CC', 'BCC')
                 INSERT INTO [schdl].[ScheduleStandingRecipient]
                     (ScheduleID, EmailAddress, RecipientRole, IncludeInFanOut)
                 VALUES
                     (@ScheduleID, @rEmail, @rRole, @rFanOut);
 
-            SET @rIndex = @rIndex + 1;
+            SET @rIndex += 1;
         END;
     END;
 
@@ -965,11 +1059,15 @@ BEGIN
     SELECT
         d.ScheduleDocumentID, d.DocumentName, d.ReportEndpoint,
         s.ScheduleID, s.ScheduleName, s.FrequencyType,
-        s.RunTime, s.DayOfWeek, s.DayOfMonth, s.IntervalMinutes, s.NextRunAt,
-        (SELECT COUNT(*) FROM [schdl].[ScheduleParameter]         WHERE ScheduleID=s.ScheduleID) AS ParameterCount,
-        (SELECT COUNT(*) FROM [schdl].[ScheduleStandingRecipient] WHERE ScheduleID=s.ScheduleID) AS RecipientCount,
-        (SELECT COUNT(*) FROM [schdl].[ScheduleParameterDispatchConfig] WHERE ScheduleID=s.ScheduleID) AS DispatchConfigCount,
-        [schdl].[fn_FetchDocumentId](s.ScheduleID)                                               AS ResolvedDocumentId
+        s.RunTime, s.DayOfWeek, s.DayOfMonth, s.IntervalMinutes,
+        s.NextRunAt,
+        (SELECT COUNT(*) FROM [schdl].[ScheduleParameter]
+         WHERE ScheduleID = s.ScheduleID)                      AS ParameterCount,
+        (SELECT COUNT(*) FROM [schdl].[ScheduleStandingRecipient]
+         WHERE ScheduleID = s.ScheduleID)                      AS RecipientCount,
+        (SELECT COUNT(*) FROM [schdl].[ScheduleParameterDispatchConfig]
+         WHERE ScheduleID = s.ScheduleID)                      AS DispatchConfigCount,
+        [schdl].[fn_FetchDocumentId](s.ScheduleID)             AS ResolvedDocumentId
     FROM [schdl].[Schedule] s
     JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = s.ScheduleID
     WHERE s.ScheduleName = @ScheduleName;
@@ -1624,89 +1722,109 @@ BEGIN
         s.IsActive,
         CAST(@Today   AS NVARCHAR) AS AsOfDate,
         CAST(@NowTime AS NVARCHAR) AS AsOfTime,
-        CASE WHEN s.IsActive=1 THEN 'Y' ELSE 'N' END                               AS Gate_IsActive,
-        CASE WHEN @Today BETWEEN s.StartDate AND ISNULL(s.EndDate,'9999-12-31')
-             THEN 'Y' ELSE 'N' END                                                  AS Gate_DateRange,
-        CASE WHEN s.NextRunAt IS NULL OR s.NextRunAt <= @Now
-             THEN 'Y' ELSE 'N' END                                                  AS Gate_NextRunAt,
+        CASE WHEN s.IsActive = 1 THEN 'Y' ELSE 'N' END AS Gate_IsActive,
+        CASE WHEN @Today BETWEEN s.StartDate AND ISNULL(s.EndDate, '9999-12-31')
+             THEN 'Y' ELSE 'N' END                      AS Gate_DateRange,
+        -- Fixed: compare DATE to DATE, not DATETIME2 to DATETIME2
+        CASE WHEN s.NextRunAt IS NULL
+                  OR CAST(s.NextRunAt AS DATE) <= @Today
+             THEN 'Y' ELSE 'N' END                      AS Gate_NextRunAt,
         CASE
-            WHEN s.FrequencyType='DAILY'
-             AND CAST(s.RunTime AS TIME) <= @NowTime                                THEN 'Y'
-            WHEN s.FrequencyType='WEEKLY'
-             AND s.DayOfWeek=@DOW AND CAST(s.RunTime AS TIME) <= @NowTime           THEN 'Y'
-            WHEN s.FrequencyType='MONTHLY'
-             AND (s.DayOfMonth=@DOM OR (s.DayOfMonth=-1 AND @DOM=@LastDOM))
-             AND CAST(s.RunTime AS TIME) <= @NowTime                                THEN 'Y'
-            WHEN s.FrequencyType='ADHOC'                                            THEN 'Y'
-            WHEN s.FrequencyType='INTERVAL'
+            WHEN s.FrequencyType = 'DAILY'
+             AND CAST(s.RunTime AS TIME) <= @NowTime                                         THEN 'Y'
+            WHEN s.FrequencyType = 'WEEKLY'
+             AND s.DayOfWeek = @DOW
+             AND CAST(s.RunTime AS TIME) <= @NowTime                                         THEN 'Y'
+            WHEN s.FrequencyType = 'MONTHLY'
+             AND (s.DayOfMonth = @DOM OR (s.DayOfMonth = -1 AND @DOM = @LastDOM))
+             AND CAST(s.RunTime AS TIME) <= @NowTime                                         THEN 'Y'
+            WHEN s.FrequencyType = 'ADHOC'                                                   THEN 'Y'
+            WHEN s.FrequencyType = 'INTERVAL'
              AND (s.WindowStart IS NULL OR @NowTime >= s.WindowStart)
-             AND (s.WindowEnd   IS NULL OR @NowTime <= s.WindowEnd)                 THEN 'Y'
+             AND (s.WindowEnd   IS NULL OR @NowTime <= s.WindowEnd)
+             AND (s.NextRunAt IS NULL OR @Now >= s.NextRunAt)                                THEN 'Y'
             ELSE 'N'
-        END                                                                         AS Gate_Frequency
+        END AS Gate_Frequency
     FROM [schdl].[Schedule] s
     ORDER BY s.ScheduleName;
 
+    -- Collect due schedules
     DROP TABLE IF EXISTS #Due;
-    SELECT s.ScheduleID INTO #Due FROM [schdl].[Schedule] s
-    WHERE  s.IsActive=1
-      AND  @Today BETWEEN s.StartDate AND ISNULL(s.EndDate,'9999-12-31')
-      AND  (s.NextRunAt IS NULL OR s.NextRunAt<=@Now)
+    SELECT s.ScheduleID INTO #Due
+    FROM   [schdl].[Schedule] s
+    WHERE  s.IsActive = 1
+      AND  @Today BETWEEN s.StartDate AND ISNULL(s.EndDate, '9999-12-31')
+      -- Fixed gate: compare date-to-date for all except INTERVAL
+      AND  (s.NextRunAt IS NULL
+            OR (s.FrequencyType <> 'INTERVAL' AND CAST(s.NextRunAt AS DATE) <= @Today)
+            OR (s.FrequencyType =  'INTERVAL' AND s.NextRunAt <= @Now))
       AND  (
-               (s.FrequencyType='DAILY'   AND CAST(s.RunTime AS TIME)<=@NowTime)
-            OR (s.FrequencyType='WEEKLY'  AND s.DayOfWeek=@DOW AND CAST(s.RunTime AS TIME)<=@NowTime)
-            OR (s.FrequencyType='MONTHLY' AND (s.DayOfMonth=@DOM OR (s.DayOfMonth=-1 AND @DOM=@LastDOM))
-                                          AND CAST(s.RunTime AS TIME)<=@NowTime)
-            OR  s.FrequencyType='ADHOC'
-            OR (s.FrequencyType='INTERVAL'
-                AND (s.WindowStart IS NULL OR @NowTime>=s.WindowStart)
-                AND (s.WindowEnd   IS NULL OR @NowTime<=s.WindowEnd))
+               (s.FrequencyType = 'DAILY'
+                AND CAST(s.RunTime AS TIME) <= @NowTime)
+            OR (s.FrequencyType = 'WEEKLY'
+                AND s.DayOfWeek = @DOW
+                AND CAST(s.RunTime AS TIME) <= @NowTime)
+            OR (s.FrequencyType = 'MONTHLY'
+                AND (s.DayOfMonth = @DOM OR (s.DayOfMonth = -1 AND @DOM = @LastDOM))
+                AND CAST(s.RunTime AS TIME) <= @NowTime)
+            OR  s.FrequencyType = 'ADHOC'
+            OR (s.FrequencyType = 'INTERVAL'
+                AND (s.WindowStart IS NULL OR @NowTime >= s.WindowStart)
+                AND (s.WindowEnd   IS NULL OR @NowTime <= s.WindowEnd))
            );
 
-    INSERT INTO [schdl].[ExecutionLog](ScheduleID,Status)
-    SELECT ScheduleID,'PENDING' FROM #Due;
+    -- Log pending execution
+    INSERT INTO [schdl].[ExecutionLog] (ScheduleID, Status)
+    SELECT ScheduleID, 'PENDING' FROM #Due;
 
+    -- Update NextRunAt using fn_CalcNextRunAt (correct next occurrence)
     UPDATE s
-    SET    NextRunAt = CASE s.FrequencyType
-               WHEN 'DAILY'    THEN DATEADD(DAY,   1,                    @Now)
-               WHEN 'WEEKLY'   THEN DATEADD(DAY,   7,                    @Now)
-               WHEN 'MONTHLY'  THEN DATEADD(MONTH, 1,                    @Now)
-               WHEN 'ADHOC'    THEN NULL
-               WHEN 'INTERVAL' THEN DATEADD(MINUTE,s.IntervalMinutes,    @Now)
-           END,
+    SET    NextRunAt  = [schdl].[fn_CalcNextRunAt](
+                            s.FrequencyType, s.DayOfWeek, s.DayOfMonth,
+                            s.IntervalMinutes, @Now),
            ModifiedAt = @Now
-    FROM [schdl].[Schedule] s
-    JOIN #Due d ON d.ScheduleID=s.ScheduleID;
+    FROM   [schdl].[Schedule] s
+    JOIN   #Due d ON d.ScheduleID = s.ScheduleID;
 
-    UPDATE s SET IsActive=0, ModifiedAt=@Now
-    FROM [schdl].[Schedule] s
-    JOIN #Due d ON d.ScheduleID=s.ScheduleID
-    WHERE s.FrequencyType='ADHOC';
+    -- Disable ADHOC schedules after first run
+    UPDATE s SET IsActive = 0, ModifiedAt = @Now
+    FROM   [schdl].[Schedule] s
+    JOIN   #Due d ON d.ScheduleID = s.ScheduleID
+    WHERE  s.FrequencyType = 'ADHOC';
 
+    -- Build dispatch queue for each due schedule
     DECLARE @sID INT, @lID BIGINT;
     DECLARE sc CURSOR LOCAL FAST_FORWARD FOR
         SELECT d.ScheduleID,
                (SELECT MAX(LogID) FROM [schdl].[ExecutionLog]
-                WHERE  ScheduleID=d.ScheduleID AND Status='PENDING')
-        FROM #Due d;
+                WHERE  ScheduleID = d.ScheduleID AND Status = 'PENDING')
+        FROM   #Due d;
+
     OPEN sc; FETCH NEXT FROM sc INTO @sID, @lID;
-    WHILE @@FETCH_STATUS=0
+    WHILE @@FETCH_STATUS = 0
     BEGIN
-        EXEC [schdl].[usp_BuildDispatchQueue] @ScheduleID=@sID, @LogID=@lID, @AsOf=@Now;
+        EXEC [schdl].[usp_BuildDispatchQueue]
+             @ScheduleID = @sID,
+             @LogID      = @lID,
+             @AsOf       = @Now;
         FETCH NEXT FROM sc INTO @sID, @lID;
     END;
     CLOSE sc; DEALLOCATE sc;
 
+    -- Return dispatch queue to Flowgear
     SELECT
-        dq.QueueID, dq.LogID, dq.ScheduleID,
-        s.ScheduleName, dq.DeliveryMethod,
-        d.DocumentName, d.ReportEndpoint,
-        dq.DispatchType, dq.DispatchKeyValue, dq.RequestJson,
-        dq.ToAddresses, dq.CcAddresses, dq.BccAddresses,
-        dq.EmailSubject, dq.EmailBody, dq.FolderPath, dq.FileName
-    FROM [schdl].[DispatchQueue]  dq
-    JOIN [schdl].[Schedule]       s  ON s.ScheduleID = dq.ScheduleID
-    JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = dq.ScheduleID
-    WHERE dq.Status='PENDING'
+        dq.QueueID,  dq.LogID,      dq.ScheduleID,
+        s.ScheduleName,              dq.DeliveryMethod,
+        d.DocumentName,              d.ReportEndpoint,
+        dq.DispatchType,             dq.DispatchKeyValue,
+        dq.RequestJson,
+        dq.ToAddresses,              dq.CcAddresses,    dq.BccAddresses,
+        dq.EmailSubject,             dq.EmailBody,
+        dq.FolderPath,               dq.FileName
+    FROM  [schdl].[DispatchQueue]    dq
+    JOIN  [schdl].[Schedule]         s  ON s.ScheduleID  = dq.ScheduleID
+    JOIN  [schdl].[ScheduleDocument] d  ON d.ScheduleID  = dq.ScheduleID
+    WHERE dq.Status = 'PENDING'
     ORDER BY dq.ScheduleID, dq.DispatchType DESC, dq.DispatchKeyValue;
 END;
 GO

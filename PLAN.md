@@ -89,11 +89,11 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 
 | Field | Per-entity resolver | Fallback |
 |---|---|---|
-| ToAddresses | `ParameterDispatchConfig.EmailSourceValue` | — (required for INDIVIDUAL) |
-| FolderPath | `ParameterDispatchConfig.FolderSourceValue` | `Schedule.FolderSourceValue` |
-| FileName | `ParameterDispatchConfig.FileNameSourceValue` | `Schedule.FileNameSourceValue` |
-| EmailSubject | `ParameterDispatchConfig.SubjectSourceValue` | `Schedule.SubjectSourceValue` |
-| EmailBody | `ParameterDispatchConfig.BodySourceValue` | `Schedule.BodySourceValue` |
+| ToAddresses | `ScheduleParameterDispatchConfig.EmailSourceValue` | — (required for INDIVIDUAL) |
+| FolderPath | `ScheduleParameterDispatchConfig.FolderSourceValue` | `Schedule.FolderSourceValue` |
+| FileName | `ScheduleParameterDispatchConfig.FileNameSourceValue` | `Schedule.FileNameSourceValue` |
+| EmailSubject | `ScheduleParameterDispatchConfig.SubjectSourceValue` | `Schedule.SubjectSourceValue` |
+| EmailBody | `ScheduleParameterDispatchConfig.BodySourceValue` | `Schedule.BodySourceValue` |
 | CcAddresses | `@CcFanOut` (IncludeInFanOut=1 standing recipients) | — |
 
 ---
@@ -105,9 +105,14 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 | `sql/deploy/scheduling_agent_v3.sql` | Full schema + all stored procs | ✅ Complete |
 | `tools/schedule_builder.html` | Visual HTML builder + load existing schedule | ✅ Complete |
 | `docs/flowgear_integration.md` | Flowgear node sequence + dispatch behaviour | ✅ Current |
+| `docs/execution_flow.md` | Complete dispatch pipeline walkthrough | ✅ Current |
+| `docs/html_builder.md` | HTML builder internals for future devs | ✅ Current |
 | `docs/configuration_guide.md` | Configuration reference | ⚠ Stale — references removed architecture |
-| `sql/samples/scheduling_agent_samples.sql` | Sample registrations | ✅ Complete |
-| `sql/tests/scheduling_agent_test_suite.sql` | Test schedules | ✅ Complete |
+| `sql/samples/register_schedule_sample.sql` | Full-featured EXEC sample (v3 API) | ✅ Current |
+| `sql/samples/test_dispatch_sample.sql` | TestDispatch call + expected output | ✅ Current |
+| `sql/samples/scheduling_agent_samples.sql` | Sample registrations | ⚠ Stale — old API |
+| `sql/tests/validation_checklist.md` | Manual QA checklist | ✅ Current |
+| `sql/tests/scheduling_agent_test_suite.sql` | Test schedules | ⚠ Stale — old API |
 
 ---
 
@@ -125,7 +130,19 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 - [x] `usp_GetScheduleJson` (Section 4.5) — reads live schedule and reconstructs full `RegisterSQL` string for HTML round-trip; includes `fanOut` block for `IsPrimaryDispatchKey=1` params
 - [x] `fn_ResolveAllTokens` — resolves all `{{TOKEN}}` values via `DateToken` table + `fn_ResolveDateToken`
 - [x] `fn_ResolveDateToken` — resolves named date tokens (TODAY, PREV_MONTH_END, etc.)
-- [x] DROP block — correct FK-safe reverse order; covers old `ScheduleRecipient` for backward compat
+- [x] `fn_CalcNextRunAt` — calculates correct `NextRunAt` DATETIME2; DAILY/WEEKLY/MONTHLY use flat DATE, INTERVAL is time-aware, ADHOC returns NULL; called by both `usp_RegisterSchedule` and `usp_GetDueSchedules`
+- [x] `usp_RegisterSchedule` — sets `NextRunAt` via `fn_CalcNextRunAt` on both INSERT and UPDATE
+- [x] `usp_GetDueSchedules` — `Gate_NextRunAt` uses `CAST(NextRunAt AS DATE) <= @Today` for non-INTERVAL (fixes time-of-day drift); INTERVAL uses full datetime `NextRunAt <= @Now`; `NextRunAt` advance uses `fn_CalcNextRunAt`
+- [x] DROP block — correct FK-safe reverse order; covers old `ScheduleRecipient` for backward compat; includes `fn_CalcNextRunAt`
+
+### Documentation + samples
+
+- [x] `CLAUDE.md` — rewritten to reflect v3 schedule-centric table names (`ScheduleDocument`, `ScheduleDocumentParameter`, `ScheduleParameterDispatchConfig`); updated invariants, fn_FetchDocumentId signature, fieldState key count (11)
+- [x] `docs/execution_flow.md` — complete dispatch pipeline: registration write order, gate logic, BuildDispatchQueue steps, token resolution order, Flowgear call sequence, round-trip
+- [x] `docs/html_builder.md` — layout, all state stores (fieldState 11 keys, rcpState, params, module vars), steps 1–5, OB architecture, validation routing, click-away guard, token system, syncCore output, loadSchedule round-trip
+- [x] `sql/samples/register_schedule_sample.sql` — 5 samples covering BOTH delivery, DYNAMIC_SQL email, per-entity overrides, ADHOC, INTERVAL, multiple non-primary params, date tokens, CC/BCC with IncludeInFanOut variants
+- [x] `sql/samples/test_dispatch_sample.sql` — TestDispatch call patterns (@KeepResults, @AsOf) + detailed expected output shapes for fan-out and no-fan-out cases
+- [x] `sql/tests/validation_checklist.md` — 13-section manual QA checklist covering deploy, registration, dispatch queue correctness, token resolution, round-trip, HTML builder functional checks
 
 ### HTML builder
 
@@ -149,8 +166,7 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
 ### Must do before go-live
 
 - [ ] **`fn_FetchDocumentId` — implement real body**
-  Currently stubs out against `dbo.Document / sName / bEnabled`. Replace with
-  actual table name and column names for the target environment before production use.
+  Stubs against `dbo.Document / sName / bEnabled`. Replace with actual column names for the target environment before production use.
 
 - [ ] **End-to-end Flowgear test**
   Register a test schedule, run `usp_GetDueSchedules` with `@AsOf`, verify both
@@ -161,9 +177,7 @@ No `Recipient` or `ScheduleRecipient` tables — those were removed.
   Confirm column names in result set 2 match what the Flowgear ForEach node expects.
   Particularly: `ReportEndpoint`, `RequestJson`, `ToAddresses`, `CcAddresses`, `FolderPath`.
 
-- [ ] **GitHub push**
-  Push current `sql/deploy/scheduling_agent_v3.sql` and `tools/schedule_builder.html`
-  to origin/main — these are the source of truth and must reflect the latest iterations.
+- [x] **GitHub push** — both source-of-truth files pushed to origin/main
 
 ### Should do
 
