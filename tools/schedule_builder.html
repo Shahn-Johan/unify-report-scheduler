@@ -2454,18 +2454,19 @@ function setFieldMode(key, mode) {
       if (tabs[0]) tabs[0].classList.toggle('on', mode === 'static');
       if (tabs[1]) { tabs[1].classList.toggle('on', mode === 'dynamic'); tabs[1].classList.toggle('dynamic', mode === 'dynamic'); }
     }
-    // Re-render the group whenever folder/filename mode changes
-    // so the cross-field overwrite warning recalculates correctly
+    // Re-render the folder group only when fo-filename/fo-folder mode changes
+    // AND the folder group is currently active in the OB (not the email group)
     if (key === 'fo-folder' || key === 'fo-filename') {
       const obBody = document.getElementById('ob-field-body');
-      if (obBody && editor && obBody.contains(editor)) {
+      const isFolderGroupActive = activeObjField && activeObjField.key === 'fo-grp-folder';
+      if (obBody && editor && obBody.contains(editor) && isFolderGroupActive) {
         setTimeout(() => {
           obBody.innerHTML = buildFanoutGroupContent('folder');
           wireTokenDrop(obBody);
           updateOverwriteWarn();
         }, 0);
         sync();
-        return; // skip sync+warn below — setTimeout handles it
+        return;
       }
     }
   }
@@ -2968,6 +2969,7 @@ function buildDeliveryGroupContent(group) {
     h += buildFieldEditor('dlv-body','Body', true, false);
     h += _grpSection('📄','Attachment Name');
     h += buildFieldEditor('dlv-filename','Attachment Name', false, false);
+	h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Will fallback to {REPORTNAME} if not specified.<br>Also used as file name when delivery includes FOLDER DROP.</div>';
     h += _grpSection('👥','Standing Recipients (CC / BCC)');
     h += buildRecipientsHTML();
   } else {
@@ -2975,7 +2977,7 @@ function buildDeliveryGroupContent(group) {
     h += buildFieldEditor('dlv-folder','Folder Path', true, false);
     h += _grpSection('📄','File Name');
     h += buildFieldEditor('dlv-filename','File Name', false, false);
-    h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Also used as email attachment name when delivery includes EMAIL.</div>';
+    h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Will fallback to {REPORTNAME} if not specified.<br>Also used as email attachment name when delivery includes EMAIL.</div>';
   }
   return h;
 }
@@ -2993,13 +2995,15 @@ function buildFanoutGroupContent(group) {
     h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery body.</div>';
     h += _grpSection('📄','Per-entity Attachment Name');
     h += buildFieldEditor('fo-filename','Per-entity Attachment Name', false, true);
+	h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Will fallback to {REPORTNAME}_{VALUE} if not specified.<br>Also used as file name when delivery includes FOLDER DROP.</div>';
     h += '<div class="info" style="margin-top:4px">Optional. See Folder group for overwrite rules.</div>';
   } else if (group === 'folder') {
     h += _grpSection('📁','Per-entity Folder Path');
     h += buildFieldEditor('fo-folder','Per-entity Folder Path', false, true);
+	h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery Folder Path.</div>';
     h += _grpSection('📄','Per-entity File Name');
     h += buildFieldEditor('fo-filename','Per-entity File Name', false, true);
-    h += '<div class="info" style="margin-top:4px">Optional. Falls back to Delivery Folder Path.</div>';
+    h += '<div class="info" style="margin-top:4px;margin-bottom:4px">Will fallback to {REPORTNAME}_{VALUE} if not specified.<br>Also used as email attachment name when delivery includes EMAIL.</div>';
     h += '<div id="fo-overwrite-warn" style="margin-top:10px"></div>';
   } else if (group === 'displayname') {
     h += _grpSection('🏷','Entity Label');

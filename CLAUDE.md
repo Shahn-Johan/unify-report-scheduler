@@ -213,13 +213,15 @@ Schedule is upserted **first** (it is the root FK target), then:
    - JOIN: `ScheduleParameter sp JOIN ScheduleDocumentParameter dp ON dp.ScheduleParameterID = sp.ScheduleParameterID AND dp.ScheduleID = @ScheduleID LEFT JOIN ScheduleParameterDispatchConfig dc ON dc.ScheduleParameterID = dp.ScheduleParameterID AND dc.ScheduleID = @ScheduleID`
    - The `AND ScheduleID = @ScheduleID` filters on **both** joins — prevents cross-schedule row contamination
 3. Collect `@CcAll`, `@CcFanOut`, `@BccAll`, `@BccFanOut` from ScheduleStandingRecipient
-4. If no primary parameter (IsPrimaryDispatchKey=1) → emit one COMBINED row using schedule-level resolvers
-5. If INDIVIDUAL or BOTH → cursor over primary values, emit one INDIVIDUAL row per value:
+4. Compute `@DefaultFileName = DocumentName + '.' + LOWER(ISNULL(OutputFormat, 'xlsx'))` — last-resort FileName fallback when no source is configured (e.g. `Some Report.xlsx`)
+5. If no primary parameter (IsPrimaryDispatchKey=1) → emit one COMBINED row using schedule-level resolvers. FileName last-resort: `@DefaultFileName`
+6. If INDIVIDUAL or BOTH → cursor over primary values, emit one INDIVIDUAL row per value:
    - Per-entity resolver tried first; schedule-level is the fallback for every field
    - `fn_ResolveAllTokens` applied after dynamic SQL resolution
    - `{{DISPLAYNAME}}` replaced after `fn_ResolveAllTokens`
    - INDIVIDUAL: `CcAddresses = @CcFanOut`
-6. If COMBINED or BOTH → emit one COMBINED row using schedule-level resolvers. `CcAddresses = @CcAll`
+   - FileName last-resort (when neither per-entity nor schedule-level FileName is configured): `DocumentName + '_' + DispatchValue + '.' + LOWER(OutputFormat)` — unique per entity (e.g. `Some Report_E001.xlsx`)
+7. If COMBINED or BOTH → emit one COMBINED row using schedule-level resolvers. `CcAddresses = @CcAll`. FileName last-resort: `@DefaultFileName`
 
 ---
 
@@ -315,6 +317,7 @@ let rcpState = []; // [{ role:'CC'|'BCC', email:'', includeInFanOut:false }]
 {
   isPrimary: true,
   mode: 'INDIVIDUAL|BOTH',
+  deliveryMethod: '...',                                 // ← present in HTML output; silently ignored by proc (only read from @DispatchJson)
   emailSource: '...', emailSourceValue: '...',
   displayNameSource: '...', displayNameSourceValue: '...',
   fileNameSource: '...', fileNameSourceValue: '...',     // ← NOT fileNameTemplate
@@ -338,7 +341,8 @@ let rcpState = []; // [{ role:'CC'|'BCC', email:'', includeInFanOut:false }]
 | **rcpState is authoritative** | `rcpState[]` is the single source of truth for recipients. `syncCore()` reads `getRecipients()` which reads `rcpState`, not the DOM |
 | **No `*Template` keys in output** | `syncCore()` only emits `*Source` / `*SourceValue` keys — never `fileNameTemplate`, `subjectTemplate`, `bodyTemplate` |
 | **fo-folder/fo-filename parent default** | Both initialise with `mode:'parent'` — "Use from Delivery" is the default |
-| **updateOverwriteWarn() call sites** | Must be called: (a) inside `_openGroupInOB` after rendering, (b) inside `setFieldMode()` when `key === 'fo-folder'` or `key === 'fo-filename'`, (c) inside `updateGroupSummary()` |
+| **fo-subject/fo-body parent mode** | `fo-subject` and `fo-body` are in `parentMap` (`fo-subject → dlv-subject`, `fo-body → dlv-body`) and show a "Use from Delivery" tab. They initialise with `mode:'static'` in the module-level `fieldState`, but `buildFieldEditor` auto-initialises them to `mode:'parent'` when the key is absent from `fieldState`. Both can be set to `mode:'parent'` at runtime. |
+| **updateOverwriteWarn() call sites** | Must be called: (a) inside `_openGroupInOB` after rendering, (b) inside `setFieldMode()` when `key === 'fo-folder'` or `key === 'fo-filename'` AND `activeObjField.key === 'fo-grp-folder'` (folder group must be the active OB section — prevents clobbering the email group), (c) inside `updateGroupSummary()` |
 | **_foParamId is module-level** | Declared `let _foParamId = 0` at module scope. Set only by `syncCore()`. Read by `renderParams()` to display the FAN-OUT badge. |
 | **isEmail/isFolder in syncCore** | Both are `const` locals declared at the top of `syncCore()` — not module-level. Do not hoist them out. |
 | **validateObjField routing order** | Group keys (`dlv-grp-*`, `fo-grp-*`) are checked before `startsWith('dlv-')` / `startsWith('fo-')` — if order were reversed, group validation would be skipped |

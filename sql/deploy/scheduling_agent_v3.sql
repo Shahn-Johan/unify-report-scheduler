@@ -1112,7 +1112,8 @@ BEGIN
         @EmailBody            NVARCHAR(MAX),
         @ResolvedDocId        NVARCHAR(100),
         @subjSQL              NVARCHAR(MAX),
-        @bodySQL              NVARCHAR(MAX);
+        @bodySQL              NVARCHAR(MAX),
+        @DefaultFileName      NVARCHAR(500);   -- ← NEW
 
     SELECT
         @DocID                = d.ScheduleDocumentID,
@@ -1134,6 +1135,9 @@ BEGIN
     FROM [schdl].[Schedule] s
     JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = s.ScheduleID
     WHERE s.ScheduleID = @ScheduleID;
+
+    -- ← NEW: default filename = DocumentName.OutputFormat
+    SET @DefaultFileName = @DocumentName + '.' + LOWER(ISNULL(@OutputFormat, 'xlsx'));
 
     SET @ResolvedDocId = [schdl].[fn_FetchDocumentId](@ScheduleID);
 
@@ -1186,8 +1190,7 @@ BEGIN
         SET @dvResult = NULL;
         SET @aggSQL   = N'SELECT @r = STRING_AGG([Value], ''|'') FROM (' + @dvQuery + N') AS _q';
         BEGIN TRY
-            EXEC sp_executesql @aggSQL,
-                N'@r NVARCHAR(MAX) OUTPUT', @r = @dvResult OUTPUT;
+            EXEC sp_executesql @aggSQL, N'@r NVARCHAR(MAX) OUTPUT', @r = @dvResult OUTPUT;
         END TRY
         BEGIN CATCH
             SET @dvResult = @dvStatic;
@@ -1228,7 +1231,7 @@ BEGIN
             WHEN dp.DataType = 'date'
             THEN [schdl].[fn_ResolveDateToken](TRIM(seg.value), @Today)
             ELSE TRIM(seg.value)
-        END                                   AS ResolvedSegment
+        END AS ResolvedSegment
     INTO #Raw
     FROM   [schdl].[ScheduleParameter]                   sp
     JOIN   [schdl].[ScheduleDocumentParameter]            dp ON dp.ScheduleParameterID = sp.ScheduleParameterID
@@ -1245,28 +1248,17 @@ BEGIN
 
     DROP TABLE IF EXISTS #DynVals;
 
-    -- Step 3: Re-aggregate resolved segments -> #P
+    -- Step 3: Re-aggregate -> #P
     DROP TABLE IF EXISTS #P;
     SELECT
-        ScheduleParameterID,
-        ParameterName,
-        DataType,
-        IsRequired,
-        SortOrder,
-        IsPrimary,
-        DispatchMode,
-        EmailSource,
-        EmailSourceValue,
-        DisplayNameSource,
-        DisplayNameSourceValue,
-        FileNameSource,
-        FileNameSourceValue,
-        FolderSource,
-        FolderSourceValue,
-        SubjectSource,
-        SubjectSourceValue,
-        BodySource,
-        BodySourceValue,
+        ScheduleParameterID, ParameterName, DataType, IsRequired, SortOrder,
+        IsPrimary, DispatchMode,
+        EmailSource, EmailSourceValue,
+        DisplayNameSource, DisplayNameSourceValue,
+        FileNameSource, FileNameSourceValue,
+        FolderSource, FolderSourceValue,
+        SubjectSource, SubjectSourceValue,
+        BodySource, BodySourceValue,
         STRING_AGG(ResolvedSegment, '|') WITHIN GROUP (ORDER BY ResolvedSegment) AS ResolvedValue
     INTO #P
     FROM  #Raw
@@ -1281,14 +1273,12 @@ BEGIN
 
     DROP TABLE IF EXISTS #Raw;
 
-    -- Standing CC/BCC recipients (never TO)
+    -- Standing CC/BCC
     DECLARE
-        @CcAll     NVARCHAR(MAX),
-        @CcFanOut  NVARCHAR(MAX),
-        @BccAll    NVARCHAR(MAX),
-        @BccFanOut NVARCHAR(MAX);
+        @CcAll     NVARCHAR(MAX), @CcFanOut  NVARCHAR(MAX),
+        @BccAll    NVARCHAR(MAX), @BccFanOut NVARCHAR(MAX);
 
-    SELECT @CcAll = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    SELECT @CcAll    = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
     FROM   [schdl].[ScheduleStandingRecipient]
     WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'CC';
 
@@ -1296,7 +1286,7 @@ BEGIN
     FROM   [schdl].[ScheduleStandingRecipient]
     WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'CC' AND IncludeInFanOut = 1;
 
-    SELECT @BccAll = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
+    SELECT @BccAll   = STRING_AGG(EmailAddress, ',') WITHIN GROUP (ORDER BY EmailAddress)
     FROM   [schdl].[ScheduleStandingRecipient]
     WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'BCC';
 
@@ -1304,7 +1294,7 @@ BEGIN
     FROM   [schdl].[ScheduleStandingRecipient]
     WHERE  ScheduleID = @ScheduleID AND RecipientRole = 'BCC' AND IncludeInFanOut = 1;
 
-    -- ── NO PARAMETERS — emit one COMBINED row ─────────────────
+    -- ── NO PARAMETERS ────────────────────────────────────────────────────
     IF NOT EXISTS (SELECT 1 FROM #P)
     BEGIN
         DECLARE
@@ -1347,6 +1337,10 @@ BEGIN
         IF @npFileName IS NOT NULL
             SET @npFileName = [schdl].[fn_ResolveAllTokens](@npFileName, @Today, @DocumentName);
 
+        -- ← FALLBACK: DocumentName.OutputFormat
+        IF @npFileName IS NULL
+            SET @npFileName = @DefaultFileName;
+
         DECLARE @npReqJson NVARCHAR(MAX) =
             '{"documentId":"'      + ISNULL(@ResolvedDocId,'') +
             '","outputFormat":"'   + @OutputFormat +
@@ -1365,7 +1359,7 @@ BEGIN
         RETURN;
     END;
 
-    -- ── HAS PARAMETERS — fan-out path ─────────────────────────
+    -- ── HAS PARAMETERS ───────────────────────────────────────────────────
     DECLARE
         @PrimID           INT,
         @PrimName         NVARCHAR(100),
@@ -1405,19 +1399,14 @@ BEGIN
     CROSS  APPLY STRING_SPLIT(ResolvedValue, '|')
     WHERE  ScheduleParameterID = @PrimID;
 
-    -- Pre-build non-primary parameter JSON
     DROP TABLE IF EXISTS #NP;
     SELECT
-        p.ScheduleParameterID,
-        p.ParameterName,
-        p.DataType,
-        p.IsRequired,
-        p.SortOrder,
-        p.ResolvedValue,
+        p.ScheduleParameterID, p.ParameterName, p.DataType,
+        p.IsRequired, p.SortOrder, p.ResolvedValue,
         STRING_AGG('"' + STRING_ESCAPE(TRIM(seg.value),'json') + '"', ',')
             WITHIN GROUP (ORDER BY seg.value) AS ValuesJson
     INTO #NP
-    FROM   #P                                        p
+    FROM   #P p
     CROSS  APPLY STRING_SPLIT(p.ResolvedValue, '|') seg
     WHERE  p.ScheduleParameterID <> @PrimID
     GROUP BY p.ScheduleParameterID, p.ParameterName, p.DataType,
@@ -1490,7 +1479,7 @@ BEGIN
             IF @iDisplayName IS NOT NULL
                 SET @iDisplayName = [schdl].[fn_ResolveAllTokens](@iDisplayName, @Today, @DocumentName);
 
-            -- Resolve FileName (per-entity; falls back to schedule-level)
+            -- Resolve FileName (per-entity → schedule-level → default)
             SET @iFileName = NULL;
             IF @PrimFNSrc IS NOT NULL
             BEGIN
@@ -1524,8 +1513,11 @@ BEGIN
                     SET @iFileName = REPLACE(@iFileName,'{{DISPLAYNAME}}',ISNULL(@iDisplayName,''));
                 END;
             END;
+            -- ← FALLBACK: DocumentName_DispatchValue.OutputFormat (unique per entity)
+            IF @iFileName IS NULL
+                SET @iFileName = @DocumentName + '_' + @iVal + '.' + LOWER(ISNULL(@OutputFormat, 'xlsx'));
 
-            -- Resolve FolderPath (per-entity; falls back to schedule-level)
+            -- Resolve FolderPath
             SET @iFolderPath = NULL;
             IF @sDeliveryMethod IN ('FOLDER','BOTH') AND @PrimFolderSrc IS NOT NULL
             BEGIN
@@ -1552,7 +1544,7 @@ BEGIN
             IF @iFolderPath IS NOT NULL
                 SET @iFolderPath = [schdl].[fn_ResolveAllTokens](@iFolderPath, @Today, @DocumentName);
 
-            -- Resolve Subject (per-entity override; falls back to schedule-level)
+            -- Resolve Subject
             SET @iSubject = NULL;
             IF @PrimSubjectSrc IS NOT NULL
             BEGIN
@@ -1572,7 +1564,7 @@ BEGIN
                 SET @iSubject = REPLACE(@iSubject,'{{DISPLAYNAME}}',ISNULL(@iDisplayName,''));
             END;
 
-            -- Resolve Body (per-entity override; falls back to schedule-level)
+            -- Resolve Body
             SET @iBody = NULL;
             IF @PrimBodySrc IS NOT NULL
             BEGIN
@@ -1598,10 +1590,10 @@ BEGIN
                 '"],"multiple":false,"required":true}';
 
             SET @iReqJson =
-                '{"documentId":"'      + ISNULL(@ResolvedDocId,'') +
-                '","outputFormat":"'   + @OutputFormat +
-                '","language":'        + CAST(@Language AS NVARCHAR) +
-                ',"parameters":['      + @iPrimJson + ISNULL(',' + @NonPrimArray,'') +
+                '{"documentId":"'       + ISNULL(@ResolvedDocId,'') +
+                '","outputFormat":"'    + @OutputFormat +
+                '","language":'         + CAST(@Language AS NVARCHAR) +
+                ',"parameters":['       + @iPrimJson + ISNULL(',' + @NonPrimArray,'') +
                 '],"confidentiality":"' + @Confidentiality + '"}';
 
             INSERT INTO [schdl].[DispatchQueue]
@@ -1639,10 +1631,10 @@ BEGIN
             ',"multiple":true,"required":true}';
 
         SET @bReqJson =
-            '{"documentId":"'      + ISNULL(@ResolvedDocId,'') +
-            '","outputFormat":"'   + @OutputFormat +
-            '","language":'        + CAST(@Language AS NVARCHAR) +
-            ',"parameters":['      + @bPrimJson + ISNULL(',' + @NonPrimArray,'') +
+            '{"documentId":"'       + ISNULL(@ResolvedDocId,'') +
+            '","outputFormat":"'    + @OutputFormat +
+            '","language":'         + CAST(@Language AS NVARCHAR) +
+            ',"parameters":['       + @bPrimJson + ISNULL(',' + @NonPrimArray,'') +
             '],"confidentiality":"' + @Confidentiality + '"}';
 
         SET @bTo = NULL;
@@ -1667,6 +1659,10 @@ BEGIN
         END;
         IF @bFileName IS NOT NULL
             SET @bFileName = [schdl].[fn_ResolveAllTokens](@bFileName, @Today, @DocumentName);
+
+        -- ← FALLBACK: DocumentName.OutputFormat
+        IF @bFileName IS NULL
+            SET @bFileName = @DefaultFileName;
 
         SET @bFolder = NULL;
         IF @sDeliveryMethod IN ('FOLDER','BOTH')
@@ -1693,6 +1689,7 @@ BEGIN
     END;
 END;
 GO
+
 
 
 -- 4.2  usp_GetDueSchedules  (Flowgear calls this on its cron)

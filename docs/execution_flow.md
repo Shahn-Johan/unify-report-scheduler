@@ -194,7 +194,7 @@ SELECT @BccFanOut= STRING_AGG(EmailAddress, ',') WHERE RecipientRole='BCC' AND I
 
 ### Step 4 — No-parameter path
 
-If `#P` is empty (no parameters registered): emit one COMBINED row using schedule-level resolvers. `CcAddresses = @CcAll`, `BccAddresses = @BccAll`.
+If `#P` is empty (no parameters registered): emit one COMBINED row using schedule-level resolvers. `CcAddresses = @CcAll`, `BccAddresses = @BccAll`. FileName last-resort: `@DefaultFileName` = `DocumentName + '.' + LOWER(OutputFormat)`.
 
 ### Step 5 — INDIVIDUAL rows (cursor over primary parameter values)
 
@@ -208,10 +208,11 @@ For each pipe-segment of the primary parameter's value:
    - STATIC or DYNAMIC_SQL with `{VALUE}` replacement
    - Apply `fn_ResolveAllTokens(@iDisplayName, @Today, @DocumentName)`
 
-3. **Resolve file name** (per-entity first, then schedule-level fallback)
+3. **Resolve file name** (per-entity first, then schedule-level fallback, then default)
    - If per-entity `FileNameSource IS NOT NULL`: resolve it
    - Else if schedule-level `FileNameSource IS NOT NULL`: resolve it
    - After resolution: `fn_ResolveAllTokens(...)` then `REPLACE(..., '{{DISPLAYNAME}}', @iDisplayName)`
+   - **Last-resort fallback** (when neither per-entity nor schedule-level FileName is configured): `DocumentName + '_' + DispatchValue + '.' + LOWER(OutputFormat)` — unique per entity (e.g. `Some Report_E001.xlsx`)
 
 4. **Resolve folder path** (per-entity first, then schedule-level fallback, only if FOLDER or BOTH)
    - Same per-entity/fallback pattern; `fn_ResolveAllTokens` applied (no `{{DISPLAYNAME}}` on folder)
@@ -247,6 +248,7 @@ If `DispatchMode IN ('COMBINED','BOTH')`:
 - `CcAddresses = @CcAll` (all standing CC recipients)
 - `BccAddresses = @BccAll`
 - `DispatchKeyValue = NULL`
+- **FileName last-resort**: if schedule-level `FileNameSource` is NULL or resolves to NULL → `@DefaultFileName` = `DocumentName + '.' + LOWER(OutputFormat)` (e.g. `Some Report.xlsx`)
 
 ---
 

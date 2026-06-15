@@ -47,7 +47,7 @@ const fieldState = {
 };
 ```
 
-`mode` is one of: `'static'` | `'dynamic'` | `'parent'`. The `'parent'` option appears only on `fo-folder` and `fo-filename` and means "inherit from the Delivery group".
+`mode` is one of: `'static'` | `'dynamic'` | `'parent'`. The `'parent'` option is available on `fo-folder`, `fo-filename`, `fo-subject`, and `fo-body`. It means "inherit from the Delivery group" — the field reads from `dlv-folder`, `dlv-filename`, `dlv-subject`, or `dlv-body` respectively. `fo-folder` and `fo-filename` initialise to `mode:'parent'`; `fo-subject` and `fo-body` initialise to `mode:'static'` but show the "Use from Delivery" tab when open in the Object Builder.
 
 `fieldState` is the single source of truth for all source/value fields. The DOM inputs are always read from `fieldState` via `getFieldValue(key)` and `getFieldSource(key)`.
 
@@ -316,7 +316,7 @@ Called when a group opens or when `fo-folder`/`fo-filename` mode changes. Displa
 ### Call sites
 
 1. Inside `_openGroupInOB` after rendering group content
-2. Inside `setFieldMode()` when `key === 'fo-folder'` or `key === 'fo-filename'`
+2. Inside `setFieldMode()` when `key === 'fo-folder'` or `key === 'fo-filename'` **and** `activeObjField.key === 'fo-grp-folder'` (folder group must be the active OB section). This guard prevents `buildFanoutGroupContent('folder')` from clobbering the email group when `fo-filename` mode is changed while the email group is open.
 3. Inside `updateGroupSummary()` (called from `setDelivery`, `setFanout`, and `sync`)
 
 ---
