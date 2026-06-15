@@ -1,24 +1,43 @@
 -- =============================================================================
 -- register_schedule_sample.sql
--- Full-featured EXEC [schdl].[usp_RegisterSchedule] sample — v3 API
--- Demonstrates: BOTH delivery, DYNAMIC_SQL email, per-entity overrides for
--- subject/body/filename/folder, multiple non-primary parameters, date tokens,
--- CC/BCC with IncludeInFanOut variants.
--- =============================================================================
--- IMPORTANT: Do NOT use scheduling_agent_samples.sql or scheduling_agent_test_suite.sql
--- as reference — both are stale (old @Subject/@BodyTemplate API + LOOKUP_VIEW/SCALAR_FN).
+-- Full-featured EXEC [schdl].[usp_RegisterSchedule] samples — v3 API
+-- See also: scheduling_agent_samples.sql (quick-reference),
+--           test_dispatch_sample.sql (TestDispatch patterns + expected output)
 -- =============================================================================
 
--- -------------------------------------------------------------------------
--- SAMPLE A — Monthly entity report with full fan-out (EMAIL + FOLDER)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- REQUIRED COLUMN ALIASES FOR DYNAMIC_SQL SELECT STATEMENTS
+--
+--   The proc wraps each *SourceValue as a subquery and reads a fixed column.
+--   Always alias to the name listed below when your table column differs:
+--
+--     emailSourceValue          → AS [EmailAddress]
+--     folderSourceValue         → AS [FolderPath]
+--     fileNameSourceValue       → AS [FileName]
+--     displayNameSourceValue    → AS [DisplayName]
+--     subjectSourceValue        → AS [Subject]
+--     bodySourceValue           → AS [Body]
+--     valueQuery                → AS [Value]   (aggregated via STRING_AGG)
+--
+--   {VALUE} in fanOut queries is replaced with each fan-out value before exec.
+--   deliveryMethod is NOT a valid key in the fanOut block — put it in @DispatchJson.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SAMPLE A — Full DYNAMIC_SQL, BOTH delivery, valueQuery fan-out
 --
 -- Scenario:
---   • Sends a monthly Excel report to each entity individually (INDIVIDUAL rows)
---   • Also produces a COMBINED summary row for the operations mailbox
---   • Delivers to FOLDER as well (BOTH)
---   • CC a manager on every individual email; CC audit mailbox on combined only
---   • Per-entity: email, display name, filename, folder path, subject, body
--- -------------------------------------------------------------------------
+--   • MONTHLY — 1st of each month
+--   • Sends an individual Excel report to each entity (INDIVIDUAL rows)
+--     plus a COMBINED summary row for the operations mailbox
+--   • Delivers to EMAIL + FOLDER (BOTH)
+--   • ALL delivery fields resolved at runtime via DYNAMIC_SQL from dbo.Entities
+--   • Entity list loaded at dispatch time via valueQuery (not a static pipe list)
+--   • CC manager on every individual email; CC audit mailbox on combined only
+--
+-- dbo.Entities columns used: entity_code, display_name, email, folder_path
+-- ─────────────────────────────────────────────────────────────────────────────
 EXEC [schdl].[usp_RegisterSchedule]
     -- Document
     @DocumentName    = N'Monthly Entity Report',
@@ -34,44 +53,44 @@ EXEC [schdl].[usp_RegisterSchedule]
     @RunTime         = N'06:30',
     @StartDate       = N'2025-01-01',
 
-    -- Delivery config (schedule-level: BOTH = email + folder)
+    -- ALL schedule-level delivery fields resolved via DYNAMIC_SQL
     @DispatchJson = N'{
         "deliveryMethod":      "BOTH",
-        "emailSource":         "STATIC",
-        "emailSourceValue":    "operations@example.com",
-        "subjectSource":       "STATIC",
-        "subjectSourceValue":  "Monthly Entity Report — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}",
-        "bodySource":          "STATIC",
-        "bodySourceValue":     "Please find attached the consolidated monthly entity report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.",
-        "fileNameSource":      "STATIC",
-        "fileNameSourceValue": "EntityReport_Consolidated_{{PREV_MONTH_START}}.xlsx",
-        "folderSource":        "STATIC",
-        "folderSourceValue":   "\\\\fileserver\\reports\\monthly\\consolidated"
+        "emailSource":         "DYNAMIC_SQL",
+        "emailSourceValue":    "SELECT email AS [EmailAddress] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''combined''",
+        "subjectSource":       "DYNAMIC_SQL",
+        "subjectSourceValue":  "SELECT ''Monthly Entity Report — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}'' AS [Subject] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''combined''",
+        "bodySource":          "DYNAMIC_SQL",
+        "bodySourceValue":     "SELECT ''Please find attached the consolidated monthly entity report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.'' AS [Body] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''combined''",
+        "fileNameSource":      "DYNAMIC_SQL",
+        "fileNameSourceValue": "SELECT ''EntityReport_Consolidated_{{PREV_MONTH_START}}.xlsx'' AS [FileName] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''combined''",
+        "folderSource":        "DYNAMIC_SQL",
+        "folderSourceValue":   "SELECT folder_path AS [FolderPath] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''combined''"
     }',
 
-    -- Parameters
     @ParametersJson = N'[
         {
             "name":      "EntityCode",
             "type":      "string",
             "required":  true,
             "sortOrder": 1,
-            "value":     "ENTITY_A|ENTITY_B|ENTITY_C",
+            "value":     "DYNAMIC",
+            "valueQuery":"SELECT entity_code AS [Value] FROM dbo.Entities WHERE group_id = ''monthly-report'' AND row_type = ''individual'' ORDER BY sort_order",
             "fanOut": {
                 "isPrimary":              true,
                 "mode":                   "BOTH",
                 "emailSource":            "DYNAMIC_SQL",
-                "emailSourceValue":       "SELECT email FROM dbo.Entities WHERE code = ''{VALUE}''",
+                "emailSourceValue":       "SELECT email AS [EmailAddress] FROM dbo.Entities WHERE entity_code = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT name FROM dbo.Entities WHERE code = ''{VALUE}''",
-                "subjectSource":          "STATIC",
-                "subjectSourceValue":     "{{DISPLAYNAME}} — Monthly Report {{PREV_MONTH_START}} to {{PREV_MONTH_END}}",
-                "bodySource":             "STATIC",
-                "bodySourceValue":        "Dear {{DISPLAYNAME}},\n\nPlease find attached your monthly report for the period {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.",
-                "fileNameSource":         "STATIC",
-                "fileNameSourceValue":    "EntityReport_{{DISPLAYNAME}}_{{PREV_MONTH_START}}.xlsx",
+                "displayNameSourceValue": "SELECT display_name AS [DisplayName] FROM dbo.Entities WHERE entity_code = ''{VALUE}''",
+                "subjectSource":          "DYNAMIC_SQL",
+                "subjectSourceValue":     "SELECT ''{{DISPLAYNAME}} — Monthly Report {{PREV_MONTH_START}} to {{PREV_MONTH_END}}'' AS [Subject] FROM dbo.Entities WHERE entity_code = ''{VALUE}''",
+                "bodySource":             "DYNAMIC_SQL",
+                "bodySourceValue":        "SELECT ''Dear {{DISPLAYNAME}}, please find attached your monthly report for {{PREV_MONTH_START}} to {{PREV_MONTH_END}}.'' AS [Body] FROM dbo.Entities WHERE entity_code = ''{VALUE}''",
+                "fileNameSource":         "DYNAMIC_SQL",
+                "fileNameSourceValue":    "SELECT ''EntityReport_{{DISPLAYNAME}}_{{PREV_MONTH_START}}.xlsx'' AS [FileName] FROM dbo.Entities WHERE entity_code = ''{VALUE}''",
                 "folderSource":           "DYNAMIC_SQL",
-                "folderSourceValue":      "SELECT folder_path FROM dbo.Entities WHERE code = ''{VALUE}''"
+                "folderSourceValue":      "SELECT folder_path AS [FolderPath] FROM dbo.Entities WHERE entity_code = ''{VALUE}''"
             }
         },
         {
@@ -96,30 +115,30 @@ EXEC [schdl].[usp_RegisterSchedule]
         { "email": "audit@example.com",    "role": "CC",  "includeInFanOut": false },
         { "email": "archive@example.com",  "role": "BCC", "includeInFanOut": false }
     ]';
--- Expected rows from usp_TestDispatch:
---   3 × INDIVIDUAL rows (one per EntityCode pipe-segment)
+-- Expected rows from usp_TestDispatch (assumes dbo.Entities is populated):
+--   N × INDIVIDUAL rows (one per entity_code from valueQuery)
 --     DispatchType    = INDIVIDUAL
 --     ToAddresses     = per-entity email from DYNAMIC_SQL
 --     CcAddresses     = manager@example.com  (IncludeInFanOut=1)
 --     BccAddresses    = NULL                 (IncludeInFanOut=0 for BCC)
---     DispatchKeyValue= ENTITY_A / ENTITY_B / ENTITY_C
---     DisplayName     = per-entity name from DYNAMIC_SQL
+--     DispatchKeyValue= each entity_code value
+--     DisplayName     = per-entity display_name from DYNAMIC_SQL
 --     FileName        = EntityReport_<DisplayName>_<PREV_MONTH_START>.xlsx
---     FolderPath      = per-entity folder from DYNAMIC_SQL
+--     FolderPath      = per-entity folder_path from DYNAMIC_SQL
 --   1 × COMBINED row
 --     DispatchType    = COMBINED
---     ToAddresses     = operations@example.com
+--     ToAddresses     = combined email from DYNAMIC_SQL
 --     CcAddresses     = manager@example.com + audit@example.com (all CC)
 --     BccAddresses    = archive@example.com (all BCC)
 --     DispatchKeyValue= NULL
 --     FileName        = EntityReport_Consolidated_<PREV_MONTH_START>.xlsx
---     FolderPath      = \\fileserver\reports\monthly\consolidated
+--     FolderPath      = combined folder_path from DYNAMIC_SQL
 GO
 
 
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 -- SAMPLE B — Daily report, EMAIL only, no fan-out, single static recipient
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 EXEC [schdl].[usp_RegisterSchedule]
     @DocumentName    = N'Daily Sales Summary',
     @ReportEndpoint  = N'api/reports/daily-sales',
@@ -136,8 +155,8 @@ EXEC [schdl].[usp_RegisterSchedule]
         "subjectSourceValue":  "Daily Sales Summary — {{TODAY}}",
         "bodySource":          "STATIC",
         "bodySourceValue":     "Attached: daily sales report for {{TODAY}}.",
-        "fileNameSource":       "STATIC",
-        "fileNameSourceValue":  "SalesSummary_{{TODAY}}.xlsx"
+        "fileNameSource":      "STATIC",
+        "fileNameSourceValue": "SalesSummary_{{TODAY}}.xlsx"
     }',
 
     @ParametersJson = N'[
@@ -152,9 +171,9 @@ EXEC [schdl].[usp_RegisterSchedule]
 GO
 
 
--- -------------------------------------------------------------------------
--- SAMPLE C — Weekly report, FOLDER delivery only, DYNAMIC_SQL folder path
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SAMPLE C — Weekly report, FOLDER delivery only, static path
+-- ─────────────────────────────────────────────────────────────────────────────
 EXEC [schdl].[usp_RegisterSchedule]
     @DocumentName    = N'Weekly KPI Report',
     @ReportEndpoint  = N'api/reports/weekly-kpi',
@@ -165,10 +184,10 @@ EXEC [schdl].[usp_RegisterSchedule]
     @RunTime         = N'08:00',
 
     @DispatchJson = N'{
-        "deliveryMethod":  "FOLDER",
-        "folderSource":    "STATIC",
+        "deliveryMethod":    "FOLDER",
+        "folderSource":      "STATIC",
         "folderSourceValue": "\\\\fileserver\\reports\\weekly\\kpi",
-        "fileNameSource":   "STATIC",
+        "fileNameSource":    "STATIC",
         "fileNameSourceValue": "WeeklyKPI_{{PREV_WEEK_START}}_to_{{PREV_WEEK_END}}.xlsx"
     }',
 
@@ -191,10 +210,10 @@ EXEC [schdl].[usp_RegisterSchedule]
 GO
 
 
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 -- SAMPLE D — ADHOC one-shot, INDIVIDUAL only (no COMBINED row)
---            Email resolved by DYNAMIC_SQL on each fan-out value
--- -------------------------------------------------------------------------
+--            Per-entity email and displayName resolved via DYNAMIC_SQL
+-- ─────────────────────────────────────────────────────────────────────────────
 EXEC [schdl].[usp_RegisterSchedule]
     @DocumentName    = N'Ad-hoc Client Statement',
     @ReportEndpoint  = N'api/reports/client-statement',
@@ -202,8 +221,7 @@ EXEC [schdl].[usp_RegisterSchedule]
     @ScheduleName    = N'Client Statement — Ad-hoc 2025-06',
     @FrequencyType   = N'ADHOC',
 
-    -- Schedule-level email is required by schema but not used for INDIVIDUAL delivery;
-    -- set it to a fallback/catch-all address.
+    -- Schedule-level email is the fallback; INDIVIDUAL rows use per-entity resolver
     @DispatchJson = N'{
         "deliveryMethod":      "EMAIL",
         "emailSource":         "STATIC",
@@ -227,9 +245,9 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "isPrimary":              true,
                 "mode":                   "INDIVIDUAL",
                 "emailSource":            "DYNAMIC_SQL",
-                "emailSourceValue":       "SELECT contact_email FROM dbo.Clients WHERE client_id = ''{VALUE}''",
+                "emailSourceValue":       "SELECT contact_email AS [EmailAddress] FROM dbo.Clients WHERE client_id = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT client_name FROM dbo.Clients WHERE client_id = ''{VALUE}''"
+                "displayNameSourceValue": "SELECT client_name AS [DisplayName] FROM dbo.Clients WHERE client_id = ''{VALUE}''"
             }
         },
         {
@@ -244,9 +262,9 @@ EXEC [schdl].[usp_RegisterSchedule]
 GO
 
 
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 -- SAMPLE E — INTERVAL schedule (every 30 min, 06:00–18:00 window)
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 EXEC [schdl].[usp_RegisterSchedule]
     @DocumentName     = N'Intraday Position Report',
     @ReportEndpoint   = N'api/reports/intraday-position',
@@ -279,9 +297,9 @@ EXEC [schdl].[usp_RegisterSchedule]
 GO
 
 
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Admin: verify registrations
--- -------------------------------------------------------------------------
+-- ─────────────────────────────────────────────────────────────────────────────
 SELECT
     s.ScheduleID,
     s.ScheduleName,
@@ -295,7 +313,7 @@ FROM [schdl].[Schedule]         s
 JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = s.ScheduleID
 ORDER BY s.ScheduleName;
 
--- View parameters for a specific schedule
+-- View parameters and dispatch config for a specific schedule
 SELECT
     dp.ParameterName,
     dp.DataType,

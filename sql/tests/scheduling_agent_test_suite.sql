@@ -288,7 +288,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
         { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
@@ -318,7 +318,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "isPrimary":              true,
                 "mode":                   "INDIVIDUAL",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
                 "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
                 "folderSource":           "DYNAMIC_SQL",
@@ -358,7 +358,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "folderSource":           "DYNAMIC_SQL",
                 "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
@@ -474,7 +474,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
         { "name": "ReportDate", "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}" }
@@ -539,7 +539,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
                 "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_START}}_{{PREV_MONTH_END}}.xlsx"
             }
@@ -571,7 +571,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "isPrimary":              true,
                 "mode":                   "INDIVIDUAL",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
                 "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
                 "folderSource":           "DYNAMIC_SQL",
@@ -611,11 +611,15 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName   FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
                 "fileNameSourceValue":    "Report_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx",
                 "folderSource":           "DYNAMIC_SQL",
-                "folderSourceValue":      "SELECT FolderPath   FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
+                "folderSourceValue":      "SELECT FolderPath FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "subjectSource":          "DYNAMIC_SQL",
+                "subjectSourceValue":     "SELECT ''Report for '' + EntityName + '' — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}'' AS [Subject] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "bodySource":             "DYNAMIC_SQL",
+                "bodySourceValue":        "SELECT ''Dear '' + EntityName + '', please find attached your monthly report.'' AS [Body] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''"
             }
         },
         { "name": "ReportDate",   "type": "string", "required": true, "sortOrder": 2, "value": "{{PREV_MONTH_END}}"   },
@@ -655,7 +659,7 @@ EXEC [schdl].[usp_RegisterSchedule]
                 "emailSource":            "DYNAMIC_SQL",
                 "emailSourceValue":       "SELECT EmailAddress FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT EntityName FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT EntityName AS [DisplayName] FROM dbo.TestEntity WHERE EntityCode = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
                 "fileNameSourceValue":    "MultiParam_{{DISPLAYNAME}}_{{PREV_MONTH_END}}.xlsx"
             }

@@ -93,17 +93,18 @@ Array of parameter objects. Each maps to one row in `ScheduleDocumentParameter` 
 
 Pipe-separated `value` strings are shredded at dispatch time — each segment becomes one parameter value in the request JSON.
 
-To supply values at runtime, use `parameterValueQuery` instead of `value`:
+To supply values at runtime via `valueQuery`:
 
 ```json
 {
   "name": "EntityCode",
   "type": "string",
-  "parameterValueQuery": "SELECT EntityCode FROM dbo.Entities WHERE IsActive = 1"
+  "value":      "DYNAMIC",
+  "valueQuery": "SELECT entity_code AS [Value] FROM dbo.Entities WHERE IsActive = 1 ORDER BY sort_order"
 }
 ```
 
-The query executes at dispatch time; results are pipe-joined and treated identically to a static value.
+`valueQuery` executes at dispatch time; results are aggregated via `STRING_AGG([Value], '|')` and treated identically to a pipe-separated static `value`. The `value` field is required (NOT NULL) and serves as a fallback placeholder — `"DYNAMIC"` is a common convention. **Column must be aliased `[Value]`.**
 
 ### fanOut block
 
@@ -150,24 +151,59 @@ Only two source types are supported:
 
 **LOOKUP_VIEW and SCALAR_FN are not supported** — both patterns are replaced by DYNAMIC_SQL.
 
+### DYNAMIC_SQL — required column aliases
+
+The stored procedure wraps each `*SourceValue` SELECT as a subquery and reads a fixed column name. **Column aliases are required whenever the table column name differs.**
+
+| Field | Required alias |
+|---|---|
+| `emailSourceValue` | `AS [EmailAddress]` |
+| `folderSourceValue` | `AS [FolderPath]` |
+| `fileNameSourceValue` | `AS [FileName]` |
+| `displayNameSourceValue` | `AS [DisplayName]` |
+| `subjectSourceValue` | `AS [Subject]` |
+| `bodySourceValue` | `AS [Body]` |
+| `valueQuery` | `AS [Value]` |
+
+`{VALUE}` in fanOut queries is replaced with each fan-out value before execution.
+`deliveryMethod` is **not** a valid key in the `fanOut` block — it is only read from `@DispatchJson`.
+
 ### DYNAMIC_SQL examples
 
-Email from a table:
+Per-entity email:
 ```json
 "emailSource":      "DYNAMIC_SQL",
-"emailSourceValue": "SELECT email FROM dbo.Entities WHERE code = '{VALUE}'"
+"emailSourceValue": "SELECT contact_email AS [EmailAddress] FROM dbo.Entities WHERE entity_code = '{VALUE}'"
 ```
 
-Folder from a table:
+Schedule-level email for COMBINED row (no `{VALUE}` needed):
+```json
+"emailSource":      "DYNAMIC_SQL",
+"emailSourceValue": "SELECT email AS [EmailAddress] FROM dbo.Config WHERE key = 'reports_to'"
+```
+
+Per-entity folder:
 ```json
 "folderSource":      "DYNAMIC_SQL",
-"folderSourceValue": "SELECT folder_path FROM dbo.Entities WHERE code = '{VALUE}'"
+"folderSourceValue": "SELECT folder_path AS [FolderPath] FROM dbo.Entities WHERE entity_code = '{VALUE}'"
 ```
 
-Schedule-level dynamic email (no `{VALUE}` needed for COMBINED):
+Per-entity display name:
 ```json
-"emailSource":      "DYNAMIC_SQL",
-"emailSourceValue": "SELECT TOP 1 email FROM dbo.Config WHERE key = 'reports_to'"
+"displayNameSource":      "DYNAMIC_SQL",
+"displayNameSourceValue": "SELECT display_name AS [DisplayName] FROM dbo.Entities WHERE entity_code = '{VALUE}'"
+```
+
+Subject constructed inline (no extra table column needed):
+```json
+"subjectSource":      "DYNAMIC_SQL",
+"subjectSourceValue": "SELECT 'Report for ' + display_name + ' — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}' AS [Subject] FROM dbo.Entities WHERE entity_code = '{VALUE}'"
+```
+
+Fan-out values loaded at dispatch time:
+```json
+"value":     "DYNAMIC",
+"valueQuery":"SELECT entity_code AS [Value] FROM dbo.Entities WHERE IsActive = 1 ORDER BY sort_order"
 ```
 
 ---

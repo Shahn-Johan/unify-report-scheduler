@@ -55,62 +55,82 @@ GO
 
 
 -- ============================================================
---  EXAMPLE 2  INDIVIDUAL fan-out  |  DYNAMIC_SQL email per entity
---  One INDIVIDUAL email per entity code + one COMBINED summary.
+--  EXAMPLE 2  BOTH dispatch  |  full DYNAMIC_SQL  |  valueQuery
+--  Fan-out per primary parameter; COMBINED row also produced.
+--  All DYNAMIC_SQL queries target dbo.Lookup (sGroup / sDBValue /
+--  sDescription / iindex). Adjust table/column names to match
+--  your environment.
+--
+--  Column aliases used by the proc (required when column name differs):
+--    emailSourceValue          → AS [EmailAddress]
+--    displayNameSourceValue    → [DisplayName]  (AS keyword optional)
+--    subjectSourceValue        → AS [Subject]
+--    bodySourceValue           → AS [Body]
+--    valueQuery                → AS [Value]
 -- ============================================================
 
 EXEC [schdl].[usp_RegisterSchedule]
-    @DocumentName    = N'Entity Report',
-    @ReportEndpoint  = N'api/reports/entity-report',
+    @DocumentName    = N'Some Document Name',
+    @ReportEndpoint  = N'/api/reports/generate',
 
-    @ScheduleName    = N'Entity Report — Monthly',
-    @FrequencyType   = N'MONTHLY',
+    @ScheduleName    = N'Some Document Name — Monthly',
+    @FrequencyType   = 'MONTHLY',
+    @RunTime         = '06:00:00',
     @DayOfMonth      = 1,
-    @RunTime         = N'06:00',
 
-    -- Schedule-level: provides COMBINED row delivery + fallback for INDIVIDUAL
+    -- Schedule-level delivery: BOTH (email + folder)
+    -- Email resolved from Lookup; subject/filename/folder STATIC with tokens
     @DispatchJson = N'{
-        "deliveryMethod":      "EMAIL",
-        "emailSource":         "STATIC",
-        "emailSourceValue":    "combined@example.com",
+        "deliveryMethod":      "BOTH",
+        "emailSource":         "DYNAMIC_SQL",
+        "emailSourceValue":    "SELECT REPLACE(sDescription, '' '','''') + ''@gmail.com'' AS [EmailAddress]\nFROM Lookup \nWHERE sGroup = ''BordereauxReports'' AND iindex in (0,1)",
         "subjectSource":       "STATIC",
-        "subjectSourceValue":  "Monthly Entity Report — {{PREV_MONTH_START}} to {{PREV_MONTH_END}}",
-        "bodySource":          "STATIC",
-        "bodySourceValue":     "See attached.",
+        "subjectSourceValue":  "{{REPORTNAME}} Executed on {{TODAY}}",
+        "bodySource":          "DYNAMIC_SQL",
+        "bodySourceValue":     "SELECT ''Please find attached some report: {{REPORTNAME}} relevant for your Company because of reasons x y and zzzz'' AS [Body]",
         "fileNameSource":      "STATIC",
-        "fileNameSourceValue": "EntityReport_Consolidated_{{PREV_MONTH_START}}.xlsx"
+        "fileNameSourceValue": "{{REPORTNAME}}_{{TODAY}}.xlsx",
+        "folderSource":        "STATIC",
+        "folderSourceValue":   "\\\\SomeServer\\{{REPORTNAME}}\\{{YEAR}}\\{{MONTH_START}}\\"
     }',
 
+    -- Primary parameter drives fan-out; valueQuery loads values at dispatch time
     @ParametersJson = N'[
         {
-            "name":      "EntityCode",
+            "name":      "BrokerRelationshipManager",
             "type":      "string",
             "required":  true,
             "sortOrder": 1,
-            "value":     "E001|E002|E003",
+            "value":     "BRM001",
+            "valueQuery":"SELECT sDBValue AS [Value] \nFROM Lookup \nWHERE sGroup = ''BordereauxReports''",
             "fanOut": {
                 "isPrimary":              true,
                 "mode":                   "BOTH",
                 "emailSource":            "DYNAMIC_SQL",
-                "emailSourceValue":       "SELECT EmailAddress FROM dbo.Entities WHERE code = ''{VALUE}''",
+                "emailSourceValue":       "SELECT sDBValue + ''@gmail.com'' AS [EmailAddress] \nFROM Lookup \nWHERE sGroup = ''BordereauxReports'' \nAND sDbValue = ''{VALUE}''",
                 "displayNameSource":      "DYNAMIC_SQL",
-                "displayNameSourceValue": "SELECT name FROM dbo.Entities WHERE code = ''{VALUE}''",
+                "displayNameSourceValue": "SELECT sDescription [DisplayName] \nFROM Lookup \nWHERE sGroup = ''BordereauxReports'' \nAND sDbValue = ''{VALUE}''",
                 "fileNameSource":         "STATIC",
-                "fileNameSourceValue":    "EntityReport_{{DISPLAYNAME}}_{{PREV_MONTH_START}}.xlsx"
+                "fileNameSourceValue":    "{{REPORTNAME}}_{{DISPLAYNAME}}_{{TODAY}}.xlsx",
+                "folderSource":           "STATIC",
+                "folderSourceValue":      "\\\\SomeServer\\{{REPORTNAME}}\\{{YEAR}}\\{{MONTH_START}}\\",
+                "subjectSource":          "DYNAMIC_SQL",
+                "subjectSourceValue":     "SELECT REPLACE(sDBValue, '' '','''') + '' Some subject for {{REPORTNAME}}''  AS [Subject]\nFROM Lookup \nWHERE sGroup = ''BordereauxReports'' AND sDbValue = ''{VALUE}''",
+                "bodySource":             "STATIC",
+                "bodySourceValue":        "This is the fanout Email Body {{REPORTNAME}} {{DISPLAYNAME}}"
             }
         },
-        {
-            "name":      "ReportDate",
-            "type":      "string",
-            "required":  true,
-            "sortOrder": 2,
-            "value":     "{{PREV_MONTH_END}}"
-        }
+        {"name": "Brokerage",                "type": "string", "required": true, "sortOrder": 2, "value": "39398|38|39399|39|39400"},
+        {"name": "Administrator_HeadOffice", "type": "string", "required": true, "sortOrder": 3, "value": "39323|2|41085|3|39324"},
+        {"name": "CaptureDateTo",            "type": "date",   "required": true, "sortOrder": 4, "value": "{{TODAY}}"},
+        {"name": "PaymentTerm",              "type": "string", "required": true, "sortOrder": 5, "value": "0|1|3|4|2"},
+        {"name": "Product",                  "type": "string", "required": true, "sortOrder": 6, "value": "17110|16970"},
+        {"name": "CapturedDateFrom",         "type": "date",   "required": true, "sortOrder": 7, "value": "{{PREV_MONTH_START}}"}
     ]',
 
     @RecipientsJson = N'[
-        { "email": "manager@example.com", "role": "CC",  "includeInFanOut": true  },
-        { "email": "audit@example.com",   "role": "BCC", "includeInFanOut": false }
+        {"email": "Combined@gmail.om",  "role": "CC", "includeInFanOut": false},
+        {"email": "Fanout@gmail.com",   "role": "CC", "includeInFanOut": true }
     ]';
 GO
 

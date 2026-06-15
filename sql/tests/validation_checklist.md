@@ -44,13 +44,15 @@ Run `sql/samples/register_schedule_sample.sql` Sample A, then verify:
 
 - [ ] `SELECT * FROM [schdl].[Schedule] WHERE ScheduleName = 'Monthly Entity Report — 1st of month'`
   - `DeliveryMethod = 'BOTH'`
-  - `SubjectSource = 'STATIC'`, `SubjectSourceValue` is non-NULL
-  - `BodySource = 'STATIC'`, `BodySourceValue` is non-NULL
-  - `EmailSource = 'STATIC'`, `EmailSourceValue = 'operations@example.com'`
+  - `EmailSource = 'DYNAMIC_SQL'`, `EmailSourceValue` is a SELECT statement (not a literal address)
+  - `SubjectSource = 'DYNAMIC_SQL'`, `SubjectSourceValue` is a SELECT statement
+  - `BodySource = 'DYNAMIC_SQL'`, `BodySourceValue` is a SELECT statement
+  - `FileNameSource = 'DYNAMIC_SQL'`, `FileNameSourceValue` is a SELECT statement
+  - `FolderSource = 'DYNAMIC_SQL'`, `FolderSourceValue` is a SELECT statement
 - [ ] `SELECT * FROM [schdl].[ScheduleDocument]` — row exists for that ScheduleID
 - [ ] `SELECT * FROM [schdl].[ScheduleDocumentParameter]` — 3 rows (EntityCode, ReportStartDate, ReportEndDate)
-- [ ] `SELECT * FROM [schdl].[ScheduleParameterDispatchConfig]` — 1 row (EntityCode only, IsPrimaryDispatchKey=1)
-- [ ] `SELECT * FROM [schdl].[ScheduleParameter]` — 3 rows
+- [ ] `SELECT * FROM [schdl].[ScheduleParameterDispatchConfig]` — 1 row (EntityCode only, IsPrimaryDispatchKey=1, DispatchMode=BOTH)
+- [ ] `SELECT * FROM [schdl].[ScheduleParameter]` — 3 rows; EntityCode row has `ParameterValue='DYNAMIC'` and `ParameterValueQuery` is non-NULL
 - [ ] `SELECT * FROM [schdl].[ScheduleStandingRecipient]` — 3 rows (1 CC IncludeInFanOut=1, 1 CC IncludeInFanOut=0, 1 BCC)
 
 Re-register the same schedule (idempotent test):
@@ -64,29 +66,28 @@ Re-register the same schedule (idempotent test):
 
 Run `EXEC [schdl].[usp_TestDispatch] @ScheduleName = 'Monthly Entity Report — 1st of month', @AsOf = '2025-06-01 06:30', @KeepResults = 1`
 
-> **Note**: this test requires `fn_FetchDocumentId` to return a non-NULL value and `dbo.Entities` to exist. Adjust entity codes and DYNAMIC_SQL queries to match your environment. If running without a real entities table, change the sample to use STATIC email/displayname sources.
+> **Note**: Sample A uses DYNAMIC_SQL for all fields against `dbo.Entities`. This test requires `fn_FetchDocumentId` to return a non-NULL value and `dbo.Entities` to be populated with rows matching the `group_id = 'monthly-report'` filter. Adjust queries to match your environment, or change the sample to use STATIC sources for testing without a real entities table.
 
-- [ ] Result set contains 4 rows (3 INDIVIDUAL + 1 COMBINED)
-- [ ] INDIVIDUAL rows:
+- [ ] INDIVIDUAL rows (one per entity returned by `valueQuery`):
   - [ ] `DispatchType = 'INDIVIDUAL'`
   - [ ] `DeliveryMethod = 'BOTH'`
-  - [ ] `ToAddresses` is non-NULL (per-entity email resolved)
-  - [ ] `CcAddresses` = `manager@example.com` only (not audit — IncludeInFanOut=1 filter)
+  - [ ] `ToAddresses` is non-NULL (resolved from `email AS [EmailAddress]` DYNAMIC_SQL)
+  - [ ] `CcAddresses` = `manager@example.com` only (IncludeInFanOut=1 filter)
   - [ ] `BccAddresses` is NULL (BCC has IncludeInFanOut=0)
-  - [ ] `DispatchKeyValue` = `ENTITY_A` / `ENTITY_B` / `ENTITY_C`
-  - [ ] `DisplayName` is non-NULL
+  - [ ] `DispatchKeyValue` = each `entity_code` value from `valueQuery`
+  - [ ] `DisplayName` is non-NULL (resolved from `display_name AS [DisplayName]`)
   - [ ] `FileName` contains `{{DISPLAYNAME}}` resolved (not literal `{{DISPLAYNAME}}`)
   - [ ] `FileName` contains `2025-05-01` (PREV_MONTH_START relative to @AsOf)
-  - [ ] `FolderPath` is non-NULL (per-entity folder from DYNAMIC_SQL)
-  - [ ] `EmailSubject` contains `DisplayName` (resolved) and `2025-05-01 to 2025-05-31`
+  - [ ] `FolderPath` is non-NULL (per-entity `folder_path AS [FolderPath]`)
+  - [ ] `EmailSubject` contains resolved DisplayName and `2025-05-01 to 2025-05-31`
 - [ ] COMBINED row:
   - [ ] `DispatchType = 'COMBINED'`
   - [ ] `DispatchKeyValue` is NULL
-  - [ ] `ToAddresses = 'operations@example.com'`
+  - [ ] `ToAddresses` is non-NULL (resolved from `email AS [EmailAddress]` where `row_type = 'combined'`)
   - [ ] `CcAddresses` = `manager@example.com,audit@example.com` (all CC)
   - [ ] `BccAddresses = 'archive@example.com'` (all BCC)
   - [ ] `FileName = 'EntityReport_Consolidated_2025-05-01.xlsx'`
-  - [ ] `FolderPath = '\\\\fileserver\\reports\\monthly\\consolidated'`
+  - [ ] `FolderPath` is non-NULL (resolved from `folder_path AS [FolderPath]` where `row_type = 'combined'`)
 
 Clean up: run the cleanup block from `test_dispatch_sample.sql`.
 
