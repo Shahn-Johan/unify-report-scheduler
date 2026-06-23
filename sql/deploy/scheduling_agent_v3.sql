@@ -26,6 +26,8 @@ IF OBJECT_ID('[schdl].[fn_FetchDocumentId]',    'FN') IS NOT NULL DROP FUNCTION 
 IF OBJECT_ID('[schdl].[fn_ResolveAllTokens]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveAllTokens];
 IF OBJECT_ID('[schdl].[fn_ResolveDateToken]',   'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_ResolveDateToken];
 IF OBJECT_ID('[schdl].[fn_CalcNextRunAt]',      'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_CalcNextRunAt];
+IF OBJECT_ID('[schdl].[fn_EnsureExtension]',    'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_EnsureExtension];
+IF OBJECT_ID('[schdl].[fn_EnsureTrailingSlash]',    'FN') IS NOT NULL DROP FUNCTION [schdl].[fn_EnsureTrailingSlash];
 GO
 
 -- Tables (children before parents; handles both old and new schema names)
@@ -687,6 +689,57 @@ BEGIN
 END;
 GO
 
+-- 2.5  fn_EnsureExtension
+-- ============================================================
+--  Filename Extension Fix — usp_BuildDispatchQueue
+--
+--  After every filename is resolved, ensure it ends with
+--  the correct extension. If not already present, append it.
+-- ============================================================
+-- ── Helper: ensure filename has correct extension ────────────────────────
+CREATE FUNCTION [schdl].[fn_EnsureExtension]
+(
+    @FileName     NVARCHAR(500),
+    @OutputFormat NVARCHAR(20)
+)
+RETURNS NVARCHAR(500)
+AS
+BEGIN
+    IF @FileName IS NULL RETURN NULL;
+    DECLARE @Ext NVARCHAR(20) = '.' + LOWER(ISNULL(@OutputFormat, 'xlsx'));
+    -- If filename already ends with the correct extension, return as-is
+    IF RIGHT(LOWER(@FileName), LEN(@Ext)) = @Ext RETURN @FileName;
+    -- If filename ends with any other extension (e.g. .txt), replace it
+    -- Otherwise just append
+    DECLARE @LastDot INT = LEN(@FileName) - CHARINDEX('.', REVERSE(@FileName)) + 1;
+    IF @LastDot > 1 AND @LastDot < LEN(@FileName)
+        -- Has a dot that's not at start or end — replace extension
+        RETURN LEFT(@FileName, @LastDot - 1) + @Ext;
+    -- No extension — just append
+    RETURN @FileName + @Ext;
+END;
+GO
+-- 2.6  fn_EnsureExtension
+-- ============================================================
+--  Folder Path Fix — usp_BuildDispatchQueue
+--
+--  After every folderPath is resolved, ensure it ends with
+--  a backslach("\"). If not already present, append it.
+-- ============================================================
+-- ── Helper: ensure folder path ends with backslash ─────────────────────
+CREATE FUNCTION [schdl].[fn_EnsureTrailingSlash]
+(
+    @FolderPath NVARCHAR(1000)
+)
+RETURNS NVARCHAR(1000)
+AS
+BEGIN
+    IF @FolderPath IS NULL RETURN NULL;
+    IF RIGHT(@FolderPath, 1) <> '\' RETURN @FolderPath + '\';
+    RETURN @FolderPath;
+END;
+GO
+
 
 -- ============================================================
 --  SECTION 3  SETUP PROC  --  usp_RegisterSchedule
@@ -1113,7 +1166,7 @@ BEGIN
         @ResolvedDocId        NVARCHAR(100),
         @subjSQL              NVARCHAR(MAX),
         @bodySQL              NVARCHAR(MAX),
-        @DefaultFileName      NVARCHAR(500);   -- ← NEW
+        @DefaultFileName      NVARCHAR(500);
 
     SELECT
         @DocID                = d.ScheduleDocumentID,
@@ -1136,10 +1189,8 @@ BEGIN
     JOIN [schdl].[ScheduleDocument] d ON d.ScheduleID = s.ScheduleID
     WHERE s.ScheduleID = @ScheduleID;
 
-    -- ← NEW: default filename = DocumentName.OutputFormat
     SET @DefaultFileName = @DocumentName + '.' + LOWER(ISNULL(@OutputFormat, 'xlsx'));
-
-    SET @ResolvedDocId = [schdl].[fn_FetchDocumentId](@ScheduleID);
+    SET @ResolvedDocId   = [schdl].[fn_FetchDocumentId](@ScheduleID);
 
     -- Resolve schedule-level subject
     IF @sSubjectSource = 'STATIC'
@@ -1163,7 +1214,7 @@ BEGIN
     IF @EmailBody IS NOT NULL
         SET @EmailBody = [schdl].[fn_ResolveAllTokens](@EmailBody, @Today, @DocumentName);
 
-    -- Step 1: Execute dynamic parameter value queries -> #DynVals
+    -- Step 1: Dynamic parameter value queries -> #DynVals
     DROP TABLE IF EXISTS #DynVals;
     CREATE TABLE #DynVals (
         ScheduleParameterID INT           NOT NULL,
@@ -1205,28 +1256,20 @@ BEGIN
     END;
     CLOSE dv_cur; DEALLOCATE dv_cur;
 
-    -- Step 2: Shred parameter values, resolve date tokens -> #Raw
+    -- Step 2: Shred parameter values -> #Raw
     DROP TABLE IF EXISTS #Raw;
     SELECT
-        dp.ScheduleParameterID,
-        dp.ParameterName,
-        dp.DataType,
-        dp.IsRequired,
-        dp.SortOrder,
-        ISNULL(dc.IsPrimaryDispatchKey, 0)    AS IsPrimary,
-        ISNULL(dc.DispatchMode,'INDIVIDUAL')  AS DispatchMode,
-        ISNULL(dc.EmailSource,'STATIC')       AS EmailSource,
+        dp.ScheduleParameterID, dp.ParameterName, dp.DataType,
+        dp.IsRequired, dp.SortOrder,
+        ISNULL(dc.IsPrimaryDispatchKey, 0)   AS IsPrimary,
+        ISNULL(dc.DispatchMode,'INDIVIDUAL') AS DispatchMode,
+        ISNULL(dc.EmailSource,'STATIC')      AS EmailSource,
         dc.EmailSourceValue,
-        dc.DisplayNameSource,
-        dc.DisplayNameSourceValue,
-        dc.FileNameSource,
-        dc.FileNameSourceValue,
-        dc.FolderSource,
-        dc.FolderSourceValue,
-        dc.SubjectSource,
-        dc.SubjectSourceValue,
-        dc.BodySource,
-        dc.BodySourceValue,
+        dc.DisplayNameSource,   dc.DisplayNameSourceValue,
+        dc.FileNameSource,      dc.FileNameSourceValue,
+        dc.FolderSource,        dc.FolderSourceValue,
+        dc.SubjectSource,       dc.SubjectSourceValue,
+        dc.BodySource,          dc.BodySourceValue,
         CASE
             WHEN dp.DataType = 'date'
             THEN [schdl].[fn_ResolveDateToken](TRIM(seg.value), @Today)
@@ -1324,7 +1367,10 @@ BEGIN
                 EXEC sp_executesql @npDynSQL, N'@e NVARCHAR(1000) OUTPUT', @e = @npFolder OUTPUT;
             END;
             IF @npFolder IS NOT NULL
+            BEGIN
                 SET @npFolder = [schdl].[fn_ResolveAllTokens](@npFolder, @Today, @DocumentName);
+                SET @npFolder = [schdl].[fn_EnsureTrailingSlash](@npFolder);
+            END;
         END;
 
         IF @sFileNameSource = 'STATIC'
@@ -1337,9 +1383,9 @@ BEGIN
         IF @npFileName IS NOT NULL
             SET @npFileName = [schdl].[fn_ResolveAllTokens](@npFileName, @Today, @DocumentName);
 
-        -- ← FALLBACK: DocumentName.OutputFormat
-        IF @npFileName IS NULL
-            SET @npFileName = @DefaultFileName;
+        -- Ensure extension, then fallback
+        SET @npFileName = [schdl].[fn_EnsureExtension](@npFileName, @OutputFormat);
+        IF @npFileName IS NULL SET @npFileName = @DefaultFileName;
 
         DECLARE @npReqJson NVARCHAR(MAX) =
             '{"documentId":"'      + ISNULL(@ResolvedDocId,'') +
@@ -1361,8 +1407,7 @@ BEGIN
 
     -- ── HAS PARAMETERS ───────────────────────────────────────────────────
     DECLARE
-        @PrimID           INT,
-        @PrimName         NVARCHAR(100),
+        @PrimID           INT,    @PrimName         NVARCHAR(100),
         @PrimMode         NVARCHAR(12),
         @PrimEmailSrc     NVARCHAR(20),   @PrimEmailSrcVal   NVARCHAR(MAX),
         @PrimDNSrc        NVARCHAR(20),   @PrimDNSrcVal      NVARCHAR(MAX),
@@ -1372,31 +1417,26 @@ BEGIN
         @PrimBodySrc      NVARCHAR(20),   @PrimBodySrcVal    NVARCHAR(MAX);
 
     SELECT TOP 1
-        @PrimID           = ScheduleParameterID,
-        @PrimName         = ParameterName,
+        @PrimID           = ScheduleParameterID,   @PrimName         = ParameterName,
         @PrimMode         = DispatchMode,
-        @PrimEmailSrc     = EmailSource,          @PrimEmailSrcVal   = EmailSourceValue,
-        @PrimDNSrc        = DisplayNameSource,    @PrimDNSrcVal      = DisplayNameSourceValue,
-        @PrimFNSrc        = FileNameSource,       @PrimFNSrcVal      = FileNameSourceValue,
-        @PrimFolderSrc    = FolderSource,         @PrimFolderSrcVal  = FolderSourceValue,
-        @PrimSubjectSrc   = SubjectSource,        @PrimSubjectSrcVal = SubjectSourceValue,
-        @PrimBodySrc      = BodySource,           @PrimBodySrcVal    = BodySourceValue
+        @PrimEmailSrc     = EmailSource,            @PrimEmailSrcVal   = EmailSourceValue,
+        @PrimDNSrc        = DisplayNameSource,      @PrimDNSrcVal      = DisplayNameSourceValue,
+        @PrimFNSrc        = FileNameSource,         @PrimFNSrcVal      = FileNameSourceValue,
+        @PrimFolderSrc    = FolderSource,           @PrimFolderSrcVal  = FolderSourceValue,
+        @PrimSubjectSrc   = SubjectSource,          @PrimSubjectSrcVal = SubjectSourceValue,
+        @PrimBodySrc      = BodySource,             @PrimBodySrcVal    = BodySourceValue
     FROM #P WHERE IsPrimary = 1;
 
     IF @PrimID IS NULL
     BEGIN
-        SELECT TOP 1
-            @PrimID   = ScheduleParameterID,
-            @PrimName = ParameterName
+        SELECT TOP 1 @PrimID = ScheduleParameterID, @PrimName = ParameterName
         FROM #P ORDER BY SortOrder;
         SET @PrimMode = 'COMBINED';
     END;
 
     DROP TABLE IF EXISTS #PV;
-    SELECT TRIM(value) AS DispatchValue
-    INTO   #PV
-    FROM   #P
-    CROSS  APPLY STRING_SPLIT(ResolvedValue, '|')
+    SELECT TRIM(value) AS DispatchValue INTO #PV
+    FROM   #P CROSS APPLY STRING_SPLIT(ResolvedValue, '|')
     WHERE  ScheduleParameterID = @PrimID;
 
     DROP TABLE IF EXISTS #NP;
@@ -1406,8 +1446,7 @@ BEGIN
         STRING_AGG('"' + STRING_ESCAPE(TRIM(seg.value),'json') + '"', ',')
             WITHIN GROUP (ORDER BY seg.value) AS ValuesJson
     INTO #NP
-    FROM   #P p
-    CROSS  APPLY STRING_SPLIT(p.ResolvedValue, '|') seg
+    FROM   #P p CROSS APPLY STRING_SPLIT(p.ResolvedValue, '|') seg
     WHERE  p.ScheduleParameterID <> @PrimID
     GROUP BY p.ScheduleParameterID, p.ParameterName, p.DataType,
              p.IsRequired, p.SortOrder, p.ResolvedValue;
@@ -1417,13 +1456,10 @@ BEGIN
     DECLARE @NonPrimArray NVARCHAR(MAX);
     SELECT @NonPrimArray = STRING_AGG(
         '{"name":"'    + STRING_ESCAPE(ParameterName,'json') +
-        '","type":"'   + DataType +
-        '","values":'  + ValuesJson +
+        '","type":"'   + DataType + '","values":' + ValuesJson +
         ',"multiple":' + CASE WHEN ResolvedValue LIKE '%|%' THEN 'true' ELSE 'false' END +
-        ',"required":' + CASE WHEN IsRequired=1 THEN 'true' ELSE 'false' END + '}',
-        ','
-    ) WITHIN GROUP (ORDER BY SortOrder)
-    FROM #NP;
+        ',"required":' + CASE WHEN IsRequired=1 THEN 'true' ELSE 'false' END + '}', ','
+    ) WITHIN GROUP (ORDER BY SortOrder) FROM #NP;
 
     DROP TABLE IF EXISTS #NP;
 
@@ -1431,16 +1467,11 @@ BEGIN
     IF @PrimMode IN ('INDIVIDUAL','BOTH')
     BEGIN
         DECLARE
-            @iVal         NVARCHAR(500),
-            @iEmail       NVARCHAR(MAX),
-            @iDisplayName NVARCHAR(500),
-            @iFileName    NVARCHAR(500),
-            @iFolderPath  NVARCHAR(1000),
-            @iSubject     NVARCHAR(500),
-            @iBody        NVARCHAR(MAX),
-            @iSafeVal     NVARCHAR(500),
-            @iDynSQL      NVARCHAR(MAX),
-            @iPrimJson    NVARCHAR(MAX),
+            @iVal         NVARCHAR(500),  @iEmail       NVARCHAR(MAX),
+            @iDisplayName NVARCHAR(500),  @iFileName    NVARCHAR(500),
+            @iFolderPath  NVARCHAR(1000), @iSubject     NVARCHAR(500),
+            @iBody        NVARCHAR(MAX),  @iSafeVal     NVARCHAR(500),
+            @iDynSQL      NVARCHAR(MAX),  @iPrimJson    NVARCHAR(MAX),
             @iReqJson     NVARCHAR(MAX);
 
         DECLARE ic CURSOR LOCAL FAST_FORWARD FOR SELECT DispatchValue FROM #PV;
@@ -1453,8 +1484,7 @@ BEGIN
             SET @iEmail = NULL;
             IF @sDeliveryMethod IN ('EMAIL','BOTH')
             BEGIN
-                IF @PrimEmailSrc = 'STATIC'
-                    SET @iEmail = @PrimEmailSrcVal;
+                IF @PrimEmailSrc = 'STATIC' SET @iEmail = @PrimEmailSrcVal;
                 ELSE IF @PrimEmailSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimEmailSrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = EmailAddress FROM ('
@@ -1467,8 +1497,7 @@ BEGIN
             SET @iDisplayName = NULL;
             IF @PrimDNSrc IS NOT NULL
             BEGIN
-                IF @PrimDNSrc = 'STATIC'
-                    SET @iDisplayName = @PrimDNSrcVal;
+                IF @PrimDNSrc = 'STATIC' SET @iDisplayName = @PrimDNSrcVal;
                 ELSE IF @PrimDNSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimDNSrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = DisplayName FROM ('
@@ -1483,8 +1512,7 @@ BEGIN
             SET @iFileName = NULL;
             IF @PrimFNSrc IS NOT NULL
             BEGIN
-                IF @PrimFNSrc = 'STATIC'
-                    SET @iFileName = @PrimFNSrcVal;
+                IF @PrimFNSrc = 'STATIC' SET @iFileName = @PrimFNSrcVal;
                 ELSE IF @PrimFNSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimFNSrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = FileName FROM ('
@@ -1497,32 +1525,17 @@ BEGIN
                     SET @iFileName = REPLACE(@iFileName,'{{DISPLAYNAME}}',ISNULL(@iDisplayName,''));
                 END;
             END;
-            IF @iFileName IS NULL AND @sFileNameSource IS NOT NULL
-            BEGIN
-                IF @sFileNameSource = 'STATIC'
-                    SET @iFileName = @sFileNameSourceValue;
-                ELSE IF @sFileNameSource = 'DYNAMIC_SQL' AND ISNULL(@sFileNameSourceValue,'') <> ''
-                BEGIN
-                    SET @iDynSQL = N'SELECT TOP 1 @e = FileName FROM ('
-                        + REPLACE(@sFileNameSourceValue,'{VALUE}',@iSafeVal) + N') AS _q';
-                    EXEC sp_executesql @iDynSQL, N'@e NVARCHAR(500) OUTPUT', @e = @iFileName OUTPUT;
-                END;
-                IF @iFileName IS NOT NULL
-                BEGIN
-                    SET @iFileName = [schdl].[fn_ResolveAllTokens](@iFileName, @Today, @DocumentName);
-                    SET @iFileName = REPLACE(@iFileName,'{{DISPLAYNAME}}',ISNULL(@iDisplayName,''));
-                END;
-            END;
-            -- ← FALLBACK: DocumentName_DispatchValue.OutputFormat (unique per entity)
+            -- Individual rows: never use schedule-level filename — always per-entity or default
+            -- Ensure extension, then fallback to DocumentName_DispatchValue.OutputFormat
+            SET @iFileName = [schdl].[fn_EnsureExtension](@iFileName, @OutputFormat);
             IF @iFileName IS NULL
-                SET @iFileName = @DocumentName + '_' + @iVal + '.' + LOWER(ISNULL(@OutputFormat, 'xlsx'));
+                SET @iFileName = @DocumentName + '_' + @iVal + '.' + LOWER(ISNULL(@OutputFormat,'xlsx'));
 
             -- Resolve FolderPath
             SET @iFolderPath = NULL;
             IF @sDeliveryMethod IN ('FOLDER','BOTH') AND @PrimFolderSrc IS NOT NULL
             BEGIN
-                IF @PrimFolderSrc = 'STATIC'
-                    SET @iFolderPath = @PrimFolderSrcVal;
+                IF @PrimFolderSrc = 'STATIC' SET @iFolderPath = @PrimFolderSrcVal;
                 ELSE IF @PrimFolderSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimFolderSrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
@@ -1532,8 +1545,7 @@ BEGIN
             END;
             IF @iFolderPath IS NULL AND @sDeliveryMethod IN ('FOLDER','BOTH') AND @sFolderSource IS NOT NULL
             BEGIN
-                IF @sFolderSource = 'STATIC'
-                    SET @iFolderPath = @sFolderSourceValue;
+                IF @sFolderSource = 'STATIC' SET @iFolderPath = @sFolderSourceValue;
                 ELSE IF @sFolderSource = 'DYNAMIC_SQL' AND ISNULL(@sFolderSourceValue,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = FolderPath FROM ('
@@ -1542,14 +1554,16 @@ BEGIN
                 END;
             END;
             IF @iFolderPath IS NOT NULL
+            BEGIN
                 SET @iFolderPath = [schdl].[fn_ResolveAllTokens](@iFolderPath, @Today, @DocumentName);
+                SET @iFolderPath = [schdl].[fn_EnsureTrailingSlash](@iFolderPath);
+            END;
 
             -- Resolve Subject
             SET @iSubject = NULL;
             IF @PrimSubjectSrc IS NOT NULL
             BEGIN
-                IF @PrimSubjectSrc = 'STATIC'
-                    SET @iSubject = @PrimSubjectSrcVal;
+                IF @PrimSubjectSrc = 'STATIC' SET @iSubject = @PrimSubjectSrcVal;
                 ELSE IF @PrimSubjectSrc = 'DYNAMIC_SQL' AND ISNULL(@PrimSubjectSrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = Subject FROM ('
@@ -1568,8 +1582,7 @@ BEGIN
             SET @iBody = NULL;
             IF @PrimBodySrc IS NOT NULL
             BEGIN
-                IF @PrimBodySrc = 'STATIC'
-                    SET @iBody = @PrimBodySrcVal;
+                IF @PrimBodySrc = 'STATIC' SET @iBody = @PrimBodySrcVal;
                 ELSE IF @PrimBodySrc = 'DYNAMIC_SQL' AND ISNULL(@PrimBodySrcVal,'') <> ''
                 BEGIN
                     SET @iDynSQL = N'SELECT TOP 1 @e = Body FROM ('
@@ -1614,19 +1627,16 @@ BEGIN
     IF @PrimMode IN ('COMBINED','BOTH')
     BEGIN
         DECLARE
-            @bVals     NVARCHAR(MAX),
-            @bPrimJson NVARCHAR(MAX),
-            @bReqJson  NVARCHAR(MAX),
-            @bTo       NVARCHAR(MAX),
-            @bFileName NVARCHAR(500),
-            @bFolder   NVARCHAR(1000),
+            @bVals     NVARCHAR(MAX), @bPrimJson NVARCHAR(MAX),
+            @bReqJson  NVARCHAR(MAX), @bTo       NVARCHAR(MAX),
+            @bFileName NVARCHAR(500), @bFolder   NVARCHAR(1000),
             @bDynSQL   NVARCHAR(MAX);
 
         SELECT @bVals = '[' + STRING_AGG('"' + STRING_ESCAPE(DispatchValue,'json') + '"',',') + ']'
         FROM   #PV;
 
         SET @bPrimJson =
-            '{"name":"'    + STRING_ESCAPE(@PrimName,'json') +
+            '{"name":"' + STRING_ESCAPE(@PrimName,'json') +
             '","type":"string","values":' + @bVals +
             ',"multiple":true,"required":true}';
 
@@ -1640,8 +1650,7 @@ BEGIN
         SET @bTo = NULL;
         IF @sDeliveryMethod IN ('EMAIL','BOTH')
         BEGIN
-            IF @sEmailSource = 'STATIC'
-                SET @bTo = @sEmailSourceValue;
+            IF @sEmailSource = 'STATIC' SET @bTo = @sEmailSourceValue;
             ELSE IF @sEmailSource = 'DYNAMIC_SQL' AND ISNULL(@sEmailSourceValue,'') <> ''
             BEGIN
                 SET @bDynSQL = N'SELECT TOP 1 @e = EmailAddress FROM (' + @sEmailSourceValue + N') AS _q';
@@ -1650,8 +1659,7 @@ BEGIN
         END;
 
         SET @bFileName = NULL;
-        IF @sFileNameSource = 'STATIC'
-            SET @bFileName = @sFileNameSourceValue;
+        IF @sFileNameSource = 'STATIC' SET @bFileName = @sFileNameSourceValue;
         ELSE IF @sFileNameSource = 'DYNAMIC_SQL' AND ISNULL(@sFileNameSourceValue,'') <> ''
         BEGIN
             SET @bDynSQL = N'SELECT TOP 1 @e = FileName FROM (' + @sFileNameSourceValue + N') AS _q';
@@ -1660,22 +1668,24 @@ BEGIN
         IF @bFileName IS NOT NULL
             SET @bFileName = [schdl].[fn_ResolveAllTokens](@bFileName, @Today, @DocumentName);
 
-        -- ← FALLBACK: DocumentName.OutputFormat
-        IF @bFileName IS NULL
-            SET @bFileName = @DefaultFileName;
+        -- Ensure extension, then fallback
+        SET @bFileName = [schdl].[fn_EnsureExtension](@bFileName, @OutputFormat);
+        IF @bFileName IS NULL SET @bFileName = @DefaultFileName;
 
         SET @bFolder = NULL;
         IF @sDeliveryMethod IN ('FOLDER','BOTH')
         BEGIN
-            IF @sFolderSource = 'STATIC'
-                SET @bFolder = @sFolderSourceValue;
+            IF @sFolderSource = 'STATIC' SET @bFolder = @sFolderSourceValue;
             ELSE IF @sFolderSource = 'DYNAMIC_SQL' AND ISNULL(@sFolderSourceValue,'') <> ''
             BEGIN
                 SET @bDynSQL = N'SELECT TOP 1 @e = FolderPath FROM (' + @sFolderSourceValue + N') AS _q';
                 EXEC sp_executesql @bDynSQL, N'@e NVARCHAR(1000) OUTPUT', @e = @bFolder OUTPUT;
             END;
             IF @bFolder IS NOT NULL
+            BEGIN
                 SET @bFolder = [schdl].[fn_ResolveAllTokens](@bFolder, @Today, @DocumentName);
+                SET @bFolder = [schdl].[fn_EnsureTrailingSlash](@bFolder);
+            END;
         END;
 
         INSERT INTO [schdl].[DispatchQueue]
@@ -1689,7 +1699,6 @@ BEGIN
     END;
 END;
 GO
-
 
 
 -- 4.2  usp_GetDueSchedules  (Flowgear calls this on its cron)
